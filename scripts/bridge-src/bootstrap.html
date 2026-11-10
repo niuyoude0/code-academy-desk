@@ -1,0 +1,137 @@
+<!doctype html>
+<!--
+  interactive 沙箱 bootstrap（cad-i://bridge/index.html）。
+  沙箱属性 allow-scripts（无 allow-same-origin）→ opaque origin：
+  摸不到宿主 DOM/preload/Node；与宿主唯一通道是 postMessage。
+  职责：cadBridge 客户端 / 编译产物加载与挂载 / 尺寸与错误回报 / 心跳（长任务漂移自检）。
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="color-scheme" content="dark" />
+    <title>interactive</title>
+    <link rel="stylesheet" href="./bridge.css" />
+    <link rel="stylesheet" href="./chunks/mafs.css" />
+    <link rel="stylesheet" href="./chunks/xyflow.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      const parentWin = window.parent
+      const post = (msg) => parentWin.postMessage(msg, '*')
+
+      /* ===== cadBridge：宿主能力桥客户端（fs/system/agent chunk 内部走它） ===== */
+      let seq = 0
+      const pending = new Map()
+      window.cadBridge = {
+        call: (kind, params) =>
+          new Promise((resolve, reject) => {
+            const id = `b${++seq}`
+            pending.set(id, { resolve, reject })
+            post({ type: 'bridge', id, kind, params })
+            setTimeout(() => {
+              if (pending.has(id)) {
+                pending.delete(id)
+                reject(new Error(`桥调用超时: ${kind}`))
+              }
+            }, 15000)
+          })
+      }
+
+      window.addEventListener('message', (e) => {
+        const msg = e.data
+        if (msg == null) return
+        if (msg.type === 'bridge-result') {
+          const p = pending.get(msg.id)
+          if (p == null) return
+          pending.delete(msg.id)
+          if (msg.ok) p.resolve(msg.data)
+          else p.reject(new Error(msg.error ?? '桥调用失败'))
+        } else if (msg.type === 'init') {
+          void mount(msg.code)
+        }
+      })
+
+      /* ===== 错误回报 ===== */
+      function reportError(title, detail) {
+        post({ type: 'error', title, message: String(detail ?? '').slice(0, 4000) })
+      }
+      window.addEventListener('error', (e) => reportError('运行错误', e.message))
+      window.addEventListener('unhandledrejection', (e) => reportError('未处理异常', e.reason?.message ?? e.reason))
+
+      /* ===== 挂载编译产物（ESM；默认导出 React 组件） ===== */
+      let currentRoot = null
+      const { createElement, createRoot, Component } = await import('./chunks/react.js')
+
+      function Fallback(props) {
+        return createElement(
+          'div',
+          { className: 'bd-fallback' },
+          `交互组件渲染出错：${props.message}`
+        )
+      }
+
+      class Boundary extends Component {
+        constructor(props) {
+          super(props)
+          this.state = { err: null }
+        }
+        static getDerivedStateFromError(err) {
+          return { err }
+        }
+        componentDidCatch(err) {
+          reportError('组件渲染错误', err?.stack ?? err)
+        }
+        render() {
+          return this.state.err != null
+            ? createElement(Fallback, { message: this.state.err?.message ?? String(this.state.err) })
+            : this.props.children
+        }
+      }
+
+      async function mount(code) {
+        const rootEl = document.getElementById('root')
+        try {
+          if (currentRoot != null) {
+            currentRoot.unmount()
+            currentRoot = null
+            rootEl.replaceChildren()
+          }
+          const blob = new Blob([code], { type: 'text/javascript' })
+          const url = URL.createObjectURL(blob)
+          const mod = await import(url)
+          URL.revokeObjectURL(url)
+          const Comp = mod.default
+          if (typeof Comp !== 'function') {
+            reportError('组件无效', 'interactive 组件必须默认导出 React 函数组件')
+            return
+          }
+          currentRoot = createRoot(rootEl)
+          currentRoot.render(createElement(Boundary, null, createElement(Comp)))
+        } catch (err) {
+          reportError('组件加载失败', err?.message ?? err)
+        }
+      }
+
+      /* ===== 尺寸回报（宿主按内容自适应 iframe 高度） ===== */
+      const ro = new ResizeObserver(() => {
+        const h = Math.ceil(document.documentElement.scrollHeight)
+        post({ type: 'size', height: h })
+      })
+      ro.observe(document.body)
+
+      /* ===== 心跳 + 长任务漂移自检 =====
+         定时器被长任务卡住时 drift 增大；宿主据此提示"组件卡顿"。
+         真死锁（同步死循环）时宿主侧同样收不到心跳，由宿主看门狗兜底。 */
+      let last = Date.now()
+      setInterval(() => {
+        const now = Date.now()
+        const drift = now - last - 2000
+        last = now
+        post({ type: 'heartbeat', drift: Math.max(0, drift) })
+      }, 2000)
+
+      post({ type: 'ready' })
+    </script>
+  </body>
+</html>

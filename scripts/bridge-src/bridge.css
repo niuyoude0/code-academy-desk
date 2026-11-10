@@ -1,0 +1,189 @@
+/*
+ * interactive 沙箱内基础样式（cad-i://bridge/bridge.css）。
+ * iframe 与宿主不同源，不继承 Tailwind——这里提供 JetBrains token + 有限工具类。
+ * 技能文档约定：组件布局优先用本表工具类或内联 style；画布类桥用各自样式体系。
+ */
+
+:root {
+  --color-bg: #1e1f22;
+  --color-bg2: #26282b;
+  --color-panel: #2b2d30;
+  --color-panel-hover: #323438;
+  --color-line: #393b40;
+  --color-tx: #dfe1e5;
+  --color-tx2: #9da0a8;
+  --color-acc: #3574f0;
+  --color-ok: #57965c;
+  --color-warn: #be9117;
+  --color-bad: #db5c5c;
+  --color-track: #43454a;
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", -apple-system, "PingFang SC",
+    "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, "Sarasa Mono SC", monospace;
+}
+
+html,
+body {
+  margin: 0;
+  background: transparent;
+  color: var(--color-tx);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  padding: 2px;
+}
+
+.bd-fallback {
+  border: 1px solid color-mix(in srgb, var(--color-bad) 40%, transparent);
+  background: color-mix(in srgb, var(--color-bad) 10%, transparent);
+  color: var(--color-bad);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+/* ===== 有限工具类（技能文档"布局工具类"白名单） ===== */
+.flex { display: flex; }
+.iflex { display: inline-flex; }
+.flex-col { flex-direction: column; }
+.flex-row { flex-direction: row; }
+.wrap { flex-wrap: wrap; }
+.gap-1 { gap: 4px; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.flex-1 { flex: 1 1 0%; }
+.grid { display: grid; }
+.block { display: block; }
+.iblock { display: inline-block; }
+.rel { position: relative; }
+.abs { position: absolute; }
+.of-hidden { overflow: hidden; }
+.of-auto { overflow: auto; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.text-center { text-align: center; }
+.tr { text-align: right; }
+.bold { font-weight: 600; }
+.mono { font-family: var(--font-mono); }
+.text-sm { font-size: 12px; }
+.dim { color: var(--color-tx2); }
+.acc { color: var(--color-acc); }
+.ok-c { color: var(--color-ok); }
+.warn-c { color: var(--color-warn); }
+.bad-c { color: var(--color-bad); }
+.rounded { border-radius: 6px; }
+.rounded-lg { border-radius: 8px; }
+.border { border: 1px solid var(--color-line); }
+.bg-panel { background: var(--color-panel); }
+.bg-bg2 { background: var(--color-bg2); }
+.p-1 { padding: 4px; }
+.p-2 { padding: 8px; }
+.p-3 { padding: 12px; }
+.px-2 { padding-left: 8px; padding-right: 8px; }
+.py-1 { padding-top: 4px; padding-bottom: 4px; }
+.m-0 { margin: 0; }
+.mb-1 { margin-bottom: 4px; }
+.mb-2 { margin-bottom: 8px; }
+.mt-1 { margin-top: 4px; }
+.mt-2 { margin-top: 8px; }
+
+/* ===== controls 桥控件样式 ===== */
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: var(--color-tx);
+}
+.ctrl-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ctrl-value {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--color-acc);
+  background: color-mix(in srgb, var(--color-acc) 12%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.ctrl-input {
+  background: var(--color-bg2);
+  color: var(--color-tx);
+  border: 1px solid var(--color-line);
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  outline: none;
+}
+.ctrl-input:focus {
+  border-color: var(--color-acc);
+}
+.ctrl-row input[type='range'] {
+  flex: 1 1 0%;
+  min-width: 120px;
+  accent-color: var(--color-acc);
+  height: 4px;
+}
+.ctrl-toggle {
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  border: 1px solid var(--color-line);
+  background: var(--color-bg2);
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s;
+}
+.ctrl-toggle.on {
+  background: var(--color-acc);
+  border-color: var(--color-acc);
+}
+.ctrl-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-tx);
+  transition: transform 0.15s;
+}
+.ctrl-toggle.on .ctrl-knob {
+  transform: translateX(16px);
+}
+.ctrl-play {
+  background: var(--color-acc);
+  border: 0;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.ctrl-play:hover {
+  filter: brightness(1.1);
+}
+
+/* Tailwind 名别名（向后兼容） */
+.col { flex-direction: column; }
+.row { flex-direction: row; }
+.tc { text-align: center; }
+.small { font-size: 12px; }

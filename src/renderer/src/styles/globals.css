@@ -1,0 +1,189 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+/*
+ * JetBrains New UI（Dark）配色体系 —— 来自 design/home.pen 设计稿
+ * bg #1E1F22 / panel #2B2D30 / border #393B40 / accent #3574F0
+ */
+@theme {
+  --color-bg: #1e1f22;
+  --color-bg2: #26282b;
+  --color-panel: #2b2d30;
+  --color-panel-hover: #323438;
+  --color-line: #393b40;
+  --color-tx: #dfe1e5;
+  --color-tx2: #9da0a8;
+  --color-acc: #3574f0;
+  --color-acc-hover: #4b82f5;
+  --color-ok: #57965c;
+  --color-warn: #be9117;
+  --color-bad: #db5c5c;
+  --color-track: #43454a;
+
+  --font-sans:
+    "Segoe UI Variable Text", "Segoe UI", -apple-system, "PingFang SC",
+    "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei",
+    "Noto Sans SC", sans-serif;
+  --font-mono:
+    "Cascadia Code", "JetBrains Mono", Consolas, "Sarasa Mono SC",
+    "Courier New", monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-tx);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+  /* JetBrains 风格：紧凑信息密度 */
+  font-size: 13px;
+}
+
+/* JetBrains 风格的滚动条 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-track);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ===== P5.5 课件块渲染器（A 层管线） ===== */
+
+/* markdown 正文（react-markdown 输出）：tailwind preflight 清了默认间距，这里补回语义排版 */
+.md-view > *:first-child {
+  margin-top: 0;
+}
+.md-view > *:last-child {
+  margin-bottom: 0;
+}
+.md-view p {
+  margin: 0.45em 0;
+}
+.md-view h1,
+.md-view h2,
+.md-view h3,
+.md-view h4 {
+  margin: 0.8em 0 0.4em;
+  font-weight: 600;
+  color: var(--color-tx);
+}
+.md-view h1 {
+  font-size: 1.25em;
+}
+.md-view h2 {
+  font-size: 1.15em;
+}
+.md-view h3 {
+  font-size: 1.05em;
+}
+.md-view ul,
+.md-view ol {
+  margin: 0.45em 0;
+  padding-left: 1.4em;
+}
+.md-view ul {
+  list-style: disc;
+}
+.md-view ol {
+  list-style: decimal;
+}
+.md-view li {
+  margin: 0.2em 0;
+}
+.md-view li::marker {
+  color: var(--color-tx2);
+}
+.md-view blockquote {
+  margin: 0.5em 0;
+  border-left: 3px solid var(--color-line);
+  padding-left: 0.8em;
+  color: var(--color-tx2);
+}
+.md-view hr {
+  margin: 0.8em 0;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+}
+.md-view img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+.md-view table {
+  margin: 0.5em 0;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.md-view th,
+.md-view td {
+  border: 1px solid var(--color-line);
+  padding: 4px 8px;
+}
+.md-view th {
+  background: var(--color-bg2);
+  color: var(--color-tx);
+}
+/* 行内小段 markdown（quiz 选项/标题字段/表格单元格）：整体参与外层文本流 */
+.inline-md {
+  display: inline;
+}
+.inline-md > *:first-child {
+  margin-top: 0;
+}
+.inline-md > *:last-child {
+  margin-bottom: 0;
+}
+.inline-md p {
+  display: inline;
+  margin: 0;
+}
+
+/* KaTeX（暗色适配：继承文字色，公式可横向滚动） */
+.katex {
+  color: inherit;
+  font-size: 1.06em;
+}
+.katex-display {
+  margin: 0.5em 0;
+}
+.katex-display > .katex {
+  white-space: nowrap;
+}
+
+/* shiki 代码块容器（CodeView 注入的 <pre class="shiki">） */
+.cad-code pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  line-height: 1.6;
+}
+.cad-code code {
+  font-family: var(--font-mono);
+}
+
+/* mermaid 图：适配暗底并约束宽度 */
+.mermaid-view svg {
+  max-width: 100%;
+  height: auto;
+}
+.mermaid-view .nodeLabel,
+.mermaid-view .edgeLabel {
+  color: var(--color-tx);
+}
+.mermaid-view p {
+  margin: 0;
+}

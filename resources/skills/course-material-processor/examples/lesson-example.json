@@ -1,0 +1,220 @@
+{
+  "schemaVersion": "2.0",
+  "lessonId": "ch03-k02",
+  "title": "D 触发器",
+  "generatedBy": {
+    "model": "deepseek-chat",
+    "skillVersion": "2.0",
+    "generatedAt": "2026-11-10T12:00:00Z"
+  },
+  "blocks": [
+    {
+      "id": "b01",
+      "type": "concept",
+      "origin": "book",
+      "source": { "pdfPage": 94, "bookPage": 80, "ocrFile": "ocr/ch03/p0094.md" },
+      "title": "D 触发器",
+      "tags": ["时序逻辑", "触发器"],
+      "md": "1919 年，Eccles 和 Jordan 用两根电子管搭出了第一个双稳态电路——电路竟然能'记住'1 个比特。但直到 1970 年代，工程师们才真正解决了它的致命弱点：**电平敏感**。锁存器在使能期间输出会跟着输入一路'裸奔'，时钟系统里根本没法用。本节的主角 D 触发器，用一次绝妙的改造让状态只在时钟**边沿**的一瞬间更新——整个同步数字世界都踩在这块基石上。"
+    },
+    {
+      "id": "b02",
+      "type": "text",
+      "origin": "ai-supplement",
+      "md": "先建立一个直觉画面：把 D 触发器想成一台**照相暗箱**。输入 $D$ 是窗外的风景，时钟上升沿是快门——快门按下的一瞬间，风景被定格在底片（输出 $Q$）上；快门闭合期间，窗外风景怎么变都影响不到底片。锁存器则是开着快门的相机：窗外一动，底片跟着曝。"
+    },
+    {
+      "id": "b03",
+      "type": "thinking",
+      "origin": "ai-supplement",
+      "md": "主从锁存器（主锁存器在时钟低电平采样、从锁存器在高电平输出）已经能隔离输入了，为什么还不够，非要做成边沿触发？提示：考虑使能窗口期间 $D$ 发生两次翻转、而时钟周期结束时只想留下'最后那一刻'值的场景。",
+      "hint": "电平敏感意味着窗口内的**任何**时刻输入都可能直接'漏'到输出；边沿触发把采样压缩成一个瞬间，窗口概念直接消失。"
+    },
+    {
+      "id": "b04",
+      "type": "quote",
+      "origin": "book",
+      "source": { "pdfPage": 94, "bookPage": 80, "ocrFile": "ocr/ch03/p0094.md" },
+      "md": "D 触发器（D flip-flop）在时钟边沿将 D 输入的值复制到 Q 输出，其他时间 Q 保持不变。",
+      "attribution": "教材 · 第 3 章 · 书内 p.80"
+    },
+    {
+      "id": "b05",
+      "type": "definition",
+      "origin": "book",
+      "source": { "pdfPage": 94, "bookPage": 80, "ocrFile": "ocr/ch03/p0094.md" },
+      "term": "D 触发器（D flip-flop）",
+      "md": "边沿触发的双稳态存储单元：仅在时钟 CLK 的**上升沿**（正沿触发时）采样 $D$ 输入并更新输出 $Q$，其余时间 $Q$ 保持原值不变。$Q̄$ 恒为 $Q$ 的反相。"
+    },
+    {
+      "id": "b06",
+      "type": "math",
+      "origin": "book",
+      "source": { "pdfPage": 95, "bookPage": 81, "ocrFile": "ocr/ch03/p0095.md" },
+      "latex": "Q^{+} = D",
+      "block": true
+    },
+    {
+      "id": "b07",
+      "type": "formula-list",
+      "origin": "book",
+      "source": { "pdfPage": 95, "bookPage": 81, "ocrFile": "ocr/ch03/p0095.md" },
+      "items": [
+        { "name": "特性方程", "latex": "Q^{+} = D", "note": "上升沿采样：次态就是当沿的 D" },
+        { "name": "反相输出", "latex": "\\bar{Q} = \\lnot\\, Q", "note": "恒成立，无需额外电路" },
+        { "name": "建立时间", "latex": "t_{setup} > 0", "note": "D 必须在时钟沿之前提前稳定的最短时间" },
+        { "name": "保持时间", "latex": "t_{hold} > 0", "note": "D 在时钟沿之后必须继续保持稳定的最短时间" }
+      ]
+    },
+    {
+      "id": "b08",
+      "type": "theorem",
+      "origin": "book",
+      "source": { "pdfPage": 95, "bookPage": 81, "ocrFile": "ocr/ch03/p0095.md" },
+      "name": "边沿触发原理（主从结构）",
+      "md": "主从 D 触发器由两级电平敏感 D 锁存器级联构成：主锁存器在 CLK=0 时透明、CLK=1 时保持；从锁存器相反。因此在时钟上升沿时刻，$Q$ 恰好更新为主锁存器在沿前最后锁存的 $D$ 值，且整个 CLK=1 期间输出不再受输入影响。",
+      "proof": "① CLK=0 期间：主锁存器透明，$Q_M$ 跟随 $D$；从锁存器保持（依据：锁存器电平敏感特性，书内 p.78）。② CLK 上升到 1：主锁存器关闭，$Q_M$ 冻结为沿前最后值；从锁存器变为透明，$Q = Q_M$（依据：两级使能相位互补）。③ CLK=1 其余时间：主锁存器关闭，$D$ 的任何变化都进不来，$Q$ 稳定（依据：①② 的组合）。综上，采样只发生在上升沿这一瞬间，证毕。"
+    },
+    {
+      "id": "b09",
+      "type": "compare",
+      "origin": "book",
+      "source": { "pdfPage": 95, "bookPage": 81, "ocrFile": "ocr/ch03/p0095.md" },
+      "title": "D 锁存器 vs D 触发器",
+      "columns": ["特性", "D 锁存器", "D 触发器"],
+      "rows": [
+        { "label": "敏感方式", "cells": ["电平敏感（使能期间透明）", "边沿敏感（仅在时钟沿采样）"] },
+        { "label": "输出更新窗口", "cells": ["使能全程", "时钟沿一个瞬间"] },
+        { "label": "时钟系统适用性", "cells": ["易受竞态影响，不适合", "同步系统的标准元件"] },
+        { "label": "典型用途", "cells": ["数据暂存、总线保持", "寄存器、流水线级间、状态机"] }
+      ]
+    },
+    {
+      "id": "b10",
+      "type": "table",
+      "origin": "book",
+      "source": { "pdfPage": 95, "bookPage": 81, "ocrFile": "ocr/ch03/p0095.md" },
+      "caption": "正沿触发 D 触发器功能表",
+      "md": "| CLK | D | Q⁺ | 说明 |\n|-----|---|----|------|\n| ↑ | 0 | 0 | 沿上采样 0 |\n| ↑ | 1 | 1 | 沿上采样 1 |\n| 非 ↑ | × | Q（保持） | 其他任何时刻输出不变 |"
+    },
+    {
+      "id": "b11",
+      "type": "timeline",
+      "origin": "book",
+      "source": { "pdfPage": 93, "bookPage": 79, "ocrFile": "ocr/ch03/p0093.md" },
+      "items": [
+        { "label": "1919 · 双稳态电路", "md": "Eccles & Jordan 用电子管实现首个双稳态触发电路，'1 bit 记忆'诞生" },
+        { "label": "1950s · 电平锁存器", "md": "晶体管化锁存器广泛用于早期计算机，但电平敏感问题开始暴露" },
+        { "label": "1960s · 主从结构", "md": "两级锁存器级联压制输入穿透，成为触发器的主流实现" },
+        { "label": "1970s · 边沿触发集成化", "md": "74 系列集成 D 触发器（如 7474）普及，边沿触发成为同步设计标准" }
+      ]
+    },
+    {
+      "id": "b12",
+      "type": "diagram",
+      "origin": "book",
+      "source": { "pdfPage": 94, "bookPage": 80, "ocrFile": "ocr/ch03/p0094.md" },
+      "engine": "mermaid",
+      "mermaid": "stateDiagram-v2\n    [*] --> Q0\n    Q0 --> Q1: CLK 上升沿且 D=1\n    Q1 --> Q0: CLK 上升沿且 D=0\n    Q0 --> Q0: 无有效沿（保持）\n    Q1 --> Q1: 无有效沿（保持）"
+    },
+    {
+      "id": "b13",
+      "type": "callout",
+      "origin": "book",
+      "source": { "pdfPage": 95, "bookPage": 81, "ocrFile": "ocr/ch03/p0095.md" },
+      "kind": "pitfall",
+      "md": "**建立/保持时间违例是最隐蔽的硬件 bug**：$D$ 在时钟沿前后 $t_{setup}$/$t_{hold}$ 窗口内翻转，输出可能进入亚稳态——既不是 0 也不是 1，要经过不确定的恢复时间才能稳定到随机一侧。软件出身的人常以为'只要沿前改了 D 就一定生效'，错：沿前**太晚**改和沿后**太快**改都算违例。"
+    },
+    {
+      "id": "b14",
+      "type": "example",
+      "origin": "book",
+      "source": { "pdfPage": 96, "bookPage": 82, "ocrFile": "ocr/ch03/p0096.md" },
+      "title": "正例：按波形读出 Q",
+      "steps": [
+        { "md": "已知 CLK 上升沿时刻序列 $t_1..t_4$ 处 $D$ 依次为 1, 1, 0, 1，初始 $Q=0$。" },
+        { "md": "$t_1$：上升沿，采样 $D=1$ → $Q=1$。" },
+        { "md": "$t_2$：上升沿，采样 $D=1$ → $Q$ 保持 1（次态等于当沿输入，与原态无关）。" },
+        { "md": "$t_3$：上升沿，采样 $D=0$ → $Q=0$。" },
+        { "md": "$t_4$：上升沿，采样 $D=1$ → $Q=1$。答案：$Q$ 序列 1,1,0,1。注意非沿时刻 $D$ 的抖动一律被忽略。" }
+      ]
+    },
+    {
+      "id": "b15",
+      "type": "example",
+      "origin": "ai-supplement",
+      "title": "反例：把触发器当锁存器用",
+      "steps": [
+        { "md": "错误推理：'CLK=1 期间我把 D 从 0 改成 1，Q 应该跟着变。'" },
+        { "md": "实际行为：上升沿后主锁存器已关闭，CLK=1 期间 $D$ 的任何变化都被无视，$Q$ 保持沿上的值。" },
+        { "md": "后果：如果设计依赖'使能期间透明'，输出将比预期晚一个周期——流水线错位、状态机卡死。" },
+        { "md": "正确做法：需要'使能期间跟随'的场合用**锁存器**或多路选择器（`assign Q = en ? D : Q_reg`），需要'沿上定格'用触发器。" }
+      ]
+    },
+    {
+      "id": "b16",
+      "type": "code",
+      "origin": "ai-supplement",
+      "language": "verilog",
+      "runnable": true,
+      "code": "// 正沿触发 D 触发器（同步设计最常用写法）\nmodule dff_posedge (\n    input  wire clk,\n    input  wire d,\n    output reg  q\n);\n    always @(posedge clk) begin\n        q <= d;   // 非阻塞赋值：沿上采样，其余时间保持\n    end\nendmodule"
+    },
+    {
+      "id": "b17",
+      "type": "quiz",
+      "origin": "ai-supplement",
+      "kind": "choice",
+      "question": "正沿触发的 D 触发器，CLK=1 期间 D 从 0 变为 1，输出 Q（沿上 Q=0）如何变化？",
+      "options": [
+        { "key": "A", "text": "立即跟随变为 1" },
+        { "key": "B", "text": "保持 0，直到下一个上升沿" },
+        { "key": "C", "text": "进入亚稳态" },
+        { "key": "D", "text": "变为 1 后又变回 0" }
+      ],
+      "answer": "B",
+      "explanation": "触发器只在上升沿采样；沿后输入与输出完全隔离（主锁存器关闭）。这是它与锁存器的本质区别——选 A 的同学把它当成了电平敏感锁存器。"
+    },
+    {
+      "id": "b18",
+      "type": "quiz",
+      "origin": "ai-supplement",
+      "kind": "choice",
+      "question": "D 触发器的特性方程是？",
+      "options": [
+        { "key": "A", "text": "Q⁺ = D" },
+        { "key": "B", "text": "Q⁺ = Q̄" },
+        { "key": "C", "text": "Q⁺ = D ⊕ Q" },
+        { "key": "D", "text": "Q⁺ = 1" }
+      ],
+      "answer": "A",
+      "explanation": "次态 = 当沿采样的输入 D，无记忆项。含 Q 项的是 T（Q⊕T）与 JK 触发器。"
+    },
+    {
+      "id": "b19",
+      "type": "quiz",
+      "origin": "ai-supplement",
+      "kind": "blank",
+      "question": "D 必须在时钟沿之前提前稳定的最短时间称为____时间；沿之后必须继续保持稳定的最短时间称为____时间。违反二者可能导致____态。",
+      "answer": "建立(setup), 保持(hold), 亚稳"
+    },
+    {
+      "id": "b20",
+      "type": "keypoint",
+      "origin": "ai-supplement",
+      "front": "锁存器和触发器一句话区别？",
+      "back": "锁存器电平敏感（使能期间透明），触发器边沿敏感（只在时钟沿采样一次）——同步系统只用触发器。"
+    },
+    {
+      "id": "b21",
+      "type": "summary",
+      "origin": "ai-supplement",
+      "points": [
+        "D 触发器 = 时钟边沿一瞬定格 D 到 Q，其余时间输出保持（$Q^+ = D$）",
+        "主从两级互补使能实现边沿触发，彻底消除输入穿透",
+        "建立/保持时间窗口内 D 必须稳定，违例→亚稳态",
+        "Q̄ 反馈回路是构成计数器/移位寄存器的基础，下一节寄存器组直接用到"
+      ],
+      "links": ["b05", "b06", "b08", "b13"]
+    }
+  ]
+}

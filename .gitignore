@@ -1,0 +1,20 @@
+# 依赖与构建产物
+node_modules/
+out/
+dist/
+release/
+*.log
+.DS_Store
+.tmp-*
+
+# DSH vendor 运行时（重装步骤见 README「已知环境注意事项」与 PROJECT_HANDOVER §12）
+#  - node_modules/（895MB）：`cd resources/dsh-runtime && npm install --ignore-scripts --no-audit --no-fund`
+#  - @cad/course-tools 产物：`npm run build:plugin`
+#  - node24/（86MB）：npmmirror v24.11.0 zip 提取 node.exe
+resources/dsh-runtime/node_modules/
+resources/dsh-runtime/node24/
+resources/dsh-runtime/spike-home/
+resources/dsh-runtime/spike-err.log
+
+# 桥 chunk 构建产物（`npm run build:bridge` 重新生成）
+resources/interactive-bridge/

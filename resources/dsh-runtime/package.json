@@ -1,0 +1,1 @@
+{"name":"cad-dsh-runtime","private":true,"version":"0.0.0","description":"Code Academy Desk 内置 DSH Runtime（DeepSeek Harness）vendor 部署","dependencies":{"@deepseek-ai/dsh":"0.2.2-rc.1"}}
