@@ -351,7 +351,9 @@ export function createDshRuntime(opts: DshRuntimeOptions): {
   }
 
   const request = <T>(method: string, params: unknown, timeoutMs = 30000): Promise<T> => {
-    if (child == null || !initialized) return Promise.reject(new DshError('DSH 运行时未就绪'))
+    // 只要求子进程在；initialized 由 boot 的 initialize 握手完成后置位——
+    // 若这里检查 initialized 会死锁（initialize 是第一次握手，永远发不出去）
+    if (child == null) return Promise.reject(new DshError('DSH 运行时未就绪'))
     const id = nextId++
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -420,7 +422,7 @@ export function createDshRuntime(opts: DshRuntimeOptions): {
         const hadRuns = activeRuns.size > 0
         killProcess(`进程退出 code=${code}`)
         if (hadRuns || (code !== 0 && code !== null)) {
-          console.error('[dsh] stderr 尾部:', stderrTail.slice(-1500))
+          console.error('[dsh] 进程退出 code=', code, ' stderr 尾部:', stderrTail.slice(-1500))
         }
       })
 
@@ -439,6 +441,10 @@ export function createDshRuntime(opts: DshRuntimeOptions): {
     })()
     try {
       await booting
+    } catch (err) {
+      console.error('[dsh] boot 失败:', err instanceof Error ? err.message : err)
+      if (stderrTail.length > 0) console.error('[dsh] boot 期 stderr 尾部:', stderrTail.slice(-1500))
+      throw err
     } finally {
       if (initialized) booting = null
       else booting = null
@@ -452,6 +458,7 @@ export function createDshRuntime(opts: DshRuntimeOptions): {
   ): Promise<{ sessionId: string; runId: string }> => {
     if (text.trim().length === 0) throw new DshError('消息为空')
     await boot()
+    if (!initialized) throw new DshError('DSH 运行时未就绪（initialize 握手未完成，请重试）')
     const sid = sessionId ?? `cad-${randomUUID()}`
     const runId = randomUUID()
     activeRuns.set(runId, { sender, sessionId: sid })
