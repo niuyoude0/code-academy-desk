@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Code Academy Desk · 架构与流程图</title>
+<script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  :root { --font-size-base: 14px;
+    --background:#ffffff; --foreground:#1e1f22; --card:#ffffff; --muted:#f7f8fa; --muted-foreground:#6c707e;
+    --border:#e3e6e9; --primary:#3574f0; --primary-foreground:#ffffff; --blue:#3574f0; --green:#4f9257;
+    --purple:#8b5cf6; --yellow:#e8a33d; --red:#d14343; }
+  body { margin:0; background:var(--background); color:var(--foreground);
+    font-family:"Segoe UI Variable Text","Segoe UI",-apple-system,"PingFang SC","Microsoft YaHei UI",sans-serif;
+    font-size:var(--font-size-base); line-height:1.55; padding:24px; }
+  code { background:var(--muted); border-radius:4px; padding:1px 5px; font-family:Consolas,"Cascadia Code",monospace; font-size:12.5px; }
+  b { font-weight:600; }
+  h2 { font-size:20px; } h4 { font-size:14px; }
+  /* 工具类兜底（与宿主一致的最小子集） */
+  .text-muted { color:var(--muted-foreground); } .text-small { font-size:12px; }
+  .nav.nav-pills { display:flex; flex-wrap:wrap; gap:6px; padding:0; margin:10px 0; list-style:none; }
+  .nav-link { border:1px solid var(--border); background:var(--muted); color:var(--muted-foreground); border-radius:999px; padding:5px 14px; font-size:13px; cursor:pointer; }
+  .nav-link.active { background:var(--primary); border-color:var(--primary); color:var(--primary-foreground); }
+  .table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .table th, .table td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .table th { color:var(--muted-foreground); font-weight:500; }
+  .table-responsive { overflow-x:auto; }
+</style>
+</head>
+<body>
+<div id="cad-arch" style="font-size:var(--font-size-base)">
+  <h2 style="margin:0 0 2px">Code Academy Desk · 架构与流程图</h2>
+  <div class="text-muted text-small" style="margin-bottom:10px">v0.1.0 · Electron 45 / React 19 · 基线 commit 1d87b35 · typecheck 0 错 / vitest 134 全绿</div>
+
+  <div class="nav nav-pills" role="tablist" aria-label="架构视图">
+    <button class="nav-link active" id="t-layer" role="tab" aria-controls="p-layer" aria-selected="true" type="button">分层架构</button>
+    <button class="nav-link" id="t-gen" role="tab" aria-controls="p-gen" aria-selected="false" type="button">课件生产流程</button>
+    <button class="nav-link" id="t-learn" role="tab" aria-controls="p-learn" aria-selected="false" type="button">学习与判定流程</button>
+    <button class="nav-link" id="t-ipc" role="tab" aria-controls="p-ipc" aria-selected="false" type="button">IPC 接口面</button>
+    <button class="nav-link" id="t-data" role="tab" aria-controls="p-data" aria-selected="false" type="button">数据与目录布局</button>
+  </div>
+
+  <style>
+    #cad-arch .node { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+    #cad-arch .node h4 { margin: 0 0 4px; font-size: 13px; font-weight: 500; }
+    #cad-arch .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    #cad-arch .chip { background: color-mix(in srgb, var(--blue) 10%, transparent); color: var(--foreground); border-radius: 5px; padding: 2px 7px; font-size: 11px; }
+    #cad-arch .chip.svc { background: color-mix(in srgb, var(--green) 12%, transparent); }
+    #cad-arch .chip.agent { background: color-mix(in srgb, var(--purple) 12%, transparent); }
+    #cad-arch .arrow { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 4px 0; color: var(--muted-foreground); font-size: 12px; }
+    #cad-arch .arrow b { font-weight: 500; color: var(--foreground); background: var(--muted); border-radius: 5px; padding: 2px 8px; }
+    #cad-arch .lane { display: grid; gap: 10px; }
+    @media (min-width: 720px) { #cad-arch .lane.split { grid-template-columns: 1fr 1fr; } }
+    #cad-arch .step { display: flex; gap: 8px; align-items: flex-start; padding: 3px 0; }
+    #cad-arch .step .n { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: var(--primary-foreground); font-size: 11px; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+    #cad-arch .step p { margin: 0; font-size: 12.5px; line-height: 1.45; }
+    #cad-arch .step p span { color: var(--muted-foreground); }
+    #cad-arch .branch { border-left: 2px solid var(--border); margin-left: 9px; padding-left: 12px; display: grid; gap: 6px; }
+    #cad-arch pre.tree { background: var(--muted); border-radius: 8px; padding: 10px 12px; font-size: 11.5px; line-height: 1.55; overflow-x: auto; margin: 0; }
+    #cad-arch .badge-ok { color: var(--green); }
+    #cad-arch .badge-no { color: var(--red); }
+  </style>
+
+  <!-- ============ 分层架构 ============ -->
+  <div id="p-layer" role="tabpanel" aria-labelledby="t-layer" style="padding-top:10px">
+    <div class="node">
+      <h4><i data-lucide="monitor" aria-hidden="true"></i> Renderer（React 19 · 无 Node 权限 · Tailwind 4 IDEA-Light token）</h4>
+      <div class="chips">
+        <span class="chip">CourseHomePage 列表+真实进度</span>
+        <span class="chip">LearningPathPage 三栏工作台(P6)</span>
+        <span class="chip">AgentChatPage 全页助教</span>
+        <span class="chip">agentChatStore 单例(共用DSH会话)</span>
+        <span class="chip">AgentSidePanel 侧栏助教</span>
+        <span class="chip">FileWorkbenchView 文件工作区(P7)</span>
+        <span class="chip">BlockRenderer → 22 类块视图</span>
+        <span class="chip">Md/Katex/shiki/mermaid/echarts/motion 管线</span>
+      </div>
+    </div>
+    <div class="arrow">▼ <b>window.api · contextBridge（preload/index.ts · 27 通道）</b> ▲</div>
+    <div class="node">
+      <h4><i data-lucide="server" aria-hidden="true"></i> Main（Electron main · 全权 · 全部路径限定在此层）</h4>
+      <div class="chips" style="margin-bottom:6px">
+        <span class="chip">IPC 注册：index.ts 内联 course/skill/material/mcp/agent</span>
+        <span class="chip">pathIpc</span><span class="chip">runnerIpc</span><span class="chip">workspaceIpc</span><span class="chip">interactiveIpc(cad-i://协议)</span>
+      </div>
+      <div class="chips">
+        <span class="chip svc">coursePackageV2 课程包读写+进度聚合</span>
+        <span class="chip svc">learningPath 路径/判定门/digest链</span>
+        <span class="chip svc">runner 编程题判定+runScript通用执行</span>
+        <span class="chip svc">workspaceFs 沙盒+git快照</span>
+        <span class="chip svc">interactiveCompile esbuild</span>
+        <span class="chip svc">interactiveBridge 白名单桥</span>
+        <span class="chip svc">dshRuntime 进程生命周期</span>
+        <span class="chip svc">kpSource 取料</span>
+        <span class="chip svc">courseMaterials/skills/agentSettings/mcpServers/shell/courseStats</span>
+      </div>
+    </div>
+    <div class="lane split" style="padding-top:2px">
+      <div class="arrow" style="flex-direction:column">▼<b>spawn · stdio JSON-RPC</b></div>
+      <div class="arrow" style="flex-direction:column">▼<b>fs · 全部经路径限定</b></div>
+    </div>
+    <div class="lane split">
+      <div class="node">
+        <h4><i data-lucide="bot" aria-hidden="true"></i> DSH Agent 进程（vendor node24）</h4>
+        <div class="chips">
+          <span class="chip agent">@deepseek-ai/dsh --profile cad</span>
+          <span class="chip agent">course-tools 插件 · 20 个 cad_* 工具</span>
+          <span class="chip agent">技能系统 course-material-processor v2.1</span>
+          <span class="chip agent">沙箱/审批/MCP</span>
+          <span class="chip agent">会话 JSONL 持久化(应用只持 sessionId)</span>
+        </div>
+      </div>
+      <div class="node">
+        <h4><i data-lucide="hard-drive" aria-hidden="true"></i> 数据盘 %APPDATA%\code-academy-desk\</h4>
+        <pre class="tree" style="background:transparent;padding:0">courses/&lt;id&gt;/  manifest·path·progress·chapters·exercises·assets
+materials/&lt;id&gt;/ factsheets·ocr·meta（book-prep-ocr 产物）
+workspace/files/&lt;id&gt;/  P7 课程沙盒（+.git 快照）
+workspace/runs/&lt;id&gt;/   Runner 临时执行区（每次清空）
+dsh/ skills/ agent-settings.json(Key 本机)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 课件生产流程 ============ -->
+  <div id="p-gen" role="tabpanel" aria-labelledby="t-gen" hidden style="padding-top:10px">
+    <div class="lane split">
+      <div class="node">
+        <h4>主循环 A · 首次建课（用户导入资料后）</h4>
+        <div class="step"><span class="n">1</span><p>读 <code>meta.json</code> + 各章 <code>factsheet-chNN.md</code> <span>（知识点清单/页偏移）</span></p></div>
+        <div class="step"><span class="n">2</span><p><code>cad_create_course</code> → 每章 <code>cad_add_chapter</code></p></div>
+        <div class="step"><span class="n">3</span><p><code>cad_init_path</code>：KP 有序骨架 <span>（id/书内页码/强中弱交互）</span></p></div>
+        <div class="step"><span class="n">4</span><p>汇报章数与 KP 数，<b>到此为止</b> <span>（按需单件生产）</span></p></div>
+      </div>
+      <div class="node">
+        <h4>主循环 B · 单 KP 课件生成（学到哪生成哪）</h4>
+        <div class="step"><span class="n">1</span><p><code>get_learning_context</code> <span>前序 digest 链 / gap 空缺 / 下一节预告</span></p></div>
+        <div class="step"><span class="n">2</span><p><code>get_kp_source</code> <span>factsheet 详情节 + ocr 页原文（PTC 算页码）</span></p></div>
+        <div class="step"><span class="n">3</span><p>写课件 JSON <span>七段式块映射 + 有趣开场 + 可视化≥2</span></p></div>
+        <div class="step"><span class="n">4</span><p>产 digest <span>core/takeaway ≤500 字</span></p></div>
+        <div class="step"><span class="n">5</span><p><code>validate_course_blocks</code> 机检 <span>error 清零，返工≤2 轮</span></p></div>
+        <div class="step"><span class="n">6</span><p>发出前自检 <span>页码回查≥3 条（人审页已删，责任在此）</span></p></div>
+        <div class="step"><span class="n">7</span><p><code>save_kp_lesson</code> <span>zod+铁律校验后落盘</span></p></div>
+        <div class="step"><span class="n">8</span><p><code>save_kp_digest</code> <span>摘要链入链——漏调=挖坑</span></p></div>
+        <div class="step"><span class="n">9</span><p>汇报 <span>块数/字数/页码区间/可视化清单；判定权在应用</span></p></div>
+      </div>
+    </div>
+    <div class="arrow">▼ <b>铁律：零发明 · book 块必带页码 source · AI 补充标注 origin · interactive 白名单</b></div>
+    <div class="node">
+      <h4>材料层上游：book-prep-ocr（外部技能）</h4>
+      <div class="chips">
+        <span class="chip">扫描教材 → ocr/ 逐页转写</span>
+        <span class="chip">factsheet-chNN.md 章级事实清单</span>
+        <span class="chip">meta.json 页偏移（pdfPage = 书内页 + 偏移）</span>
+        <span class="chip">[OCR 冲突] 不取舍、双源并列</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 学习与判定流程 ============ -->
+  <div id="p-learn" role="tabpanel" aria-labelledby="t-learn" hidden style="padding-top:10px">
+    <div class="node" style="margin-bottom:8px">
+      <h4>学习页（三栏工作台，宽度拖拽自动记忆）</h4>
+      <div class="chips">
+        <span class="chip">左 KP 列表 · 七态徽标 · 线性解锁</span>
+        <span class="chip">中 阅读列 820px 文档流 · 页边页码</span>
+        <span class="chip">右 工作台 tabs：助教(DSH 会话共享) / 文件(git 快照沙盒+运行按钮)</span>
+      </div>
+    </div>
+    <div class="step"><span class="n">1</span><p>选择 KP → <code>lesson:get</code> 读课件 → BlockRenderer 全量真渲染 <span>quiz 交互卡 / coding 接 Runner / interactive 进沙箱</span></p></div>
+    <div class="step"><span class="n">2</span><p>quiz 本地判定 <span>choice 集合比对 / blank 归一比对，零 AI 消耗</span></p></div>
+    <div class="step"><span class="n">3</span><p>编程题：编辑草稿 → <code>runner:run</code> <span>沙盒 runs/&lt;id&gt;/&lt;ex&gt;/ 清空重写 · stdin 喂入 · stdout 归一比对 · 超时杀树</span></p></div>
+    <div class="step"><span class="n">4</span><p>完成判定门（D6）<span>底栏压平常驻</span></p></div>
+    <div class="branch">
+      <div class="step"><span class="n badge-ok">✓</span><p><b>正常完成</b>：quiz ≥ 2/3 且（含编程题时）Runner 全过 → completed → 解锁下一 KP</p></div>
+      <div class="step"><span class="n" style="background:var(--yellow);color:var(--foreground)">!</span><p><b>应急门 forced</b>：未达标显式强过（记 forced 标记）</p></div>
+      <div class="step"><span class="n" style="background:var(--muted);color:var(--muted-foreground)">?</span><p><b>问助教</b>：薄弱处重讲/重生成课件 <span>（右侧栏直通，忙则挂起补发）</span></p></div>
+    </div>
+    <div class="arrow">▼ <b>touchCourseLearning：start/complete/skip 即刷 lastStudiedAt + completedKps</b></div>
+    <div class="node">
+      <h4>回到首页 → 真实进度（P10）</h4>
+      <div class="chips">
+        <span class="chip">课程行「n/m 已完成」</span>
+        <span class="chip">继续学习块 = 最近学习课程 + 进度条 %</span>
+        <span class="chip">「重新生成课件」一键直通助教重写</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ IPC 接口面 ============ -->
+  <div id="p-ipc" role="tabpanel" aria-labelledby="t-ipc" hidden style="padding-top:10px">
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>通道</th><th>用途</th><th>关键约束</th></tr></thead>
+        <tbody>
+          <tr><td><code>course:import/list/get/remove/export</code></td><td>v1 课程包 zip + 索引</td><td>与 v2 共存同根同索引</td></tr>
+          <tr><td><code>course:asset:read</code></td><td>课件插图 → dataURL</td><td>assets 路径限定</td></tr>
+          <tr><td><code>skill:* / material:*</code></td><td>技能浏览 / book-prep-ocr 材料</td><td>内置技能只装新不覆盖</td></tr>
+          <tr><td><code>agent:chat/abort/resume</code></td><td>DSH 会话一轮 + 流事件 <code>agent:event</code> 推送</td><td>Key 不回显渲染层</td></tr>
+          <tr><td><code>agent:settings:get/set</code></td><td>Key/模型/权限档位</td><td>档位精确三枚举</td></tr>
+          <tr><td><code>mcp:list/add/update/remove</code></td><td>MCP 配置</td><td>变更→重启 DSH</td></tr>
+          <tr><td><code>path:get</code></td><td>路径+进度视图</td><td>path 未建时 path=null</td></tr>
+          <tr><td><code>kp:start/skip/complete</code></td><td>学习动作</td><td>解锁校验/判定门在主进程；touch 索引</td></tr>
+          <tr><td><code>lesson:get</code></td><td>读课件 JSON</td><td>—</td></tr>
+          <tr><td><code>exercise:get · runner:run</code></td><td>编程题判定</td><td>沙盒清空重写 · 杀树</td></tr>
+          <tr><td><code>workspace:tree/read/write/run</code></td><td>P7 文件树/读写(git 快照) · P8 通用执行</td><td>路径限定 · ≤512KB · 扩展名白名单</td></tr>
+          <tr><td><code>interactive:compile/bridge</code></td><td>沙箱 TSX 编译 / iframe 桥中继</td><td>源码级白名单预扫描 · 只读强制</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="text-muted text-small" style="margin-top:6px">AI 侧另有 course-tools 插件 20 个 <code>cad_*</code> 工具（A 建课 3 / B 路径 6 / C 内容 4 / D 进度 3 / E 资料 3 / digest 1）；学习状态写操作与删除类<b>故意不暴露</b>给 AI。</div>
+  </div>
+
+  <!-- ============ 数据与目录布局 ============ -->
+  <div id="p-data" role="tabpanel" aria-labelledby="t-data" hidden style="padding-top:10px">
+    <div class="lane split">
+      <pre class="tree">courses/&lt;course-id&gt;/                 ← v2 课程包
+├─ manifest.json     章节树+sourceRef+generation
+├─ path.json         KP 有序表(genStatus/lessonFile)
+├─ progress.json     currentKpId + kps[state·digest·quizBest]
+├─ chapters/&lt;ch&gt;/&lt;kpId&gt;.json   课件(22 类块)
+├─ exercises/ex-*.json         编程题
+├─ assets/                     插图
+└─ review.json                 旧人审清单(已废弃·惰性)
+
+index.json(根)       课程索引 + totalKps/completedKps(P10)</pre>
+      <pre class="tree">materials/&lt;id&gt;/                 ← book-prep-ocr 产物
+├─ meta.json          页偏移(pdfPage=书页+偏移)
+├─ factsheets/factsheet-chNN.md 章级事实清单
+└─ ocr/&lt;ch&gt;/pNNNN.md  逐页转写(页首头自证页码)
+
+workspace/
+├─ files/&lt;course-id&gt;/  P7 课程沙盒(+.git 快照,512KB 上限)
+└─ runs/&lt;course-id&gt;/&lt;ex|_scratch&gt;/  Runner 临时区(清空重写)
+
+resources/interactive-bridge/   cad-i:// 静态资产
+├─ index.html(三浅色) bridge.css(浅色 token 副本)
+└─ chunks/  12 个预打包桥(react/motion/echarts/mafs/fs…)</pre>
+    </div>
+    <div class="node" style="margin-top:10px">
+      <h4>课件 22 类块（AI 只产 JSON · React 渲染 · 禁自由 HTML）</h4>
+      <div class="chips">
+        <span class="chip">text</span><span class="chip">concept 悬念开场</span><span class="chip">definition</span><span class="chip">theorem proof注依据</span><span class="chip">math</span><span class="chip">callout note/warn/pitfall</span><span class="chip">quote 页码载体</span><span class="chip">keypoint 闪卡</span><span class="chip">thinking</span><span class="chip">example 分步</span><span class="chip">compare</span><span class="chip">table</span><span class="chip">timeline</span><span class="chip">formula-list</span><span class="chip">summary links</span><span class="chip">code shiki</span><span class="chip">diagram mermaid</span><span class="chip">chart echarts纯JSON</span><span class="chip">anim 8模板帧DSL</span><span class="chip">interactive 沙箱TSX</span><span class="chip">quiz choice/blank</span><span class="chip">coding Runner</span>
+      </div>
+      <div class="text-muted text-small" style="margin-top:6px">铁律校验：book 无 source 拒 · choice&lt;2 拒 · links 引用不存在拒。容量机检：正文≥2500字 · example≥2 · quiz≥3 · 可视化≥2 · interactive≤1。</div>
+    </div>
+  </div>
+</div>
+<script>
+  // 片段内 tab 切换（宿主 tab 运行时按约定已处理 click/键盘，这里只兜底视觉态）
+  (function () {
+    var root = document.getElementById('cad-arch');
+    if (!root) return;
+    var tabs = root.querySelectorAll('[role="tab"]');
+    tabs.forEach(function (t) {
+      t.addEventListener('click', function () {
+        tabs.forEach(function (x) { x.setAttribute('aria-selected', x === t ? 'true' : 'false'); x.classList.toggle('active', x === t); });
+        ['p-layer', 'p-gen', 'p-learn', 'p-ipc', 'p-data'].forEach(function (id) {
+          var p = document.getElementById(id);
+          if (p) p.hidden = id !== t.getAttribute('aria-controls');
+        });
+      });
+    });
+    if (window.lucide) window.lucide.createIcons({ attrs: { width: 14, height: 14 } });
+  })();
+</script>
+
+</body>
+</html>

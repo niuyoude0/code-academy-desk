@@ -252,6 +252,15 @@ JSONL 落 `$DSH_HOME/sessions/`；渲染层 localStorage 持 sessionId，重启�
 - **验证**：typecheck 0 错 / vitest **132 全绿**（+4 workspace）/ 实机（三栏拖拽布局、新建 demo.py、编辑保存、git 快照链 e7e001a9→04c04807 磁盘核验）
 - **踩坑**：①workspace IPC handler 忘 await → data 是 Promise → structured clone 失败（渲染层无限「加载…」）②electron-vite dev 对 main 源码改动不总是热重启（改 main 后需手动重启 dev）③react-resizable-panels v4 是 Workspace/Tabset 全新 API，需钉 v2（PanelGroup/PanelResizeHandle 经典 API）
 
+
+
+### P8 收尾（通用执行）+ P10 学习记录（✅ 2026-11-11 晨完成，commit 1d87b35）
+
+- **P8 收口**：`runner.ts` 增 `runScript`——通用单文件执行（py/js/c；复用沙盒/超时杀树；捕获 stdout/stderr/退出码；扩展名定语言白名单）。IPC `workspace:run`（内容直传 = 直接跑编辑器草稿，不要求先保存）。文件工作区编辑器增「运行」按钮（绿）+ 输出面板（退出码/语言/耗时/超时标记/stdout/stderr/收起）
+- **P10**：索引条目增 `totalKps/completedKps`——`refreshIndexEntry` 聚合 path.json 总数 × progress.json 结算数（completed/skipped 视为已过），重建条目保留 `lastStudiedAt`（upsert 整条替换语义）；`touchCourseLearning` 挂到 startKp/completeKp/skipKp 三个学习动作。首页 CourseRow「n/m 已完成」、ContinueBanner 真实进度条 + 百分比 + 「继续学习」排序有真实时间戳
+- **验证**：typecheck 0 错 / vitest **134 全绿**（+2 runScript）/ 实机（工作区跑 python：退出码 0 + stdout 面板；跳过动作 → 首页 1/2 + 50% 进度条 + 「上次学习 刚刚」）
+- **遗留**：runScript 的 c 档位本机无 gcc（装 MinGW-w64 后即通）；快照历史查看 UI（P7 后续）；课程卸载不清理 workspace/files/<id>（卸载时可顺带删）
+
 ### P5.7 校对界面（✅ 2026-11-11 完成）
 
 - **校对页 `ReviewPage.tsx`**（学习页 header「课件校对」进入）：左列章节分组课件表（人审状态+校验双徽标+统计条）；右侧 = BlockRenderer 全量真渲染预览（**interactive 同沙箱=所见即所得**，quiz 走 QuizCard 可试答）+ validate 面板（error 红/warn 容量黄+重校验）+ 页码抽查（chips 与块角标 → OCR 对照抽屉：课件摘录↔ocr 原文，ocrFile 直读优先/bookPage 扫描自证/±1 邻页回查）+ **digest 定稿编辑器**（KP 课件）+ 状态流转（标记有效/批准/标记失败——failed 由主进程现跑校验写入错误清单；**有 error 禁批准**）
