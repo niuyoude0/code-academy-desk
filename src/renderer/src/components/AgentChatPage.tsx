@@ -1,45 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  ArrowLeft,
-  Settings,
-  Send,
-  Square,
-  Terminal,
-  Wrench,
-  FileText,
-  BookOpen,
-  Library,
-  Sparkles,
-  X,
-  KeyRound
-} from 'lucide-react'
-import type {
-  AgentSettingsPatch,
-  AgentSettingsView,
-  AgentStreamEvent,
-  McpServerEntry
-} from '../../../shared/ipc'
+import { useCallback, useEffect, useState } from 'react'
+import { ArrowLeft, Settings, Send, Square, Sparkles, X, KeyRound } from 'lucide-react'
+import type { AgentSettingsPatch, AgentSettingsView, McpServerEntry } from '../../../shared/ipc'
+import { agentChatStore, useAgentChat } from '../agentChatStore'
+import { ChatTranscript } from './ChatTranscript'
 
 /**
- * P9 AI 助教聊天页（JetBrains New UI 风格）：
- * - 流式回复 + 工具调用卡片（输入/输出可展开）
- * - run_command 的执行确认由主进程弹原生对话框，这里只展示结果
- * - 设置弹窗管理 DeepSeek API Key（掩码显示）
+ * P9 AI 助教聊天页（P6 起为薄视图）：状态/会话/事件全部在 agentChatStore 单例，
+ * 本组件只渲染全页壳（header + 建议 + 输入框 + 设置/MCP 弹窗）。
+ * 学习页右侧 AgentSidePanel 与本页共用同一会话与消息流。
  */
-
-type ChatItem =
-  | { type: 'user'; text: string }
-  | { type: 'assistant'; text: string }
-  | {
-      type: 'tool'
-      toolCallId: string
-      toolName: string
-      input: string
-      output?: string
-      error?: string
-    }
-
-const SESSION_KEY = 'cad-agent-session-id'
 
 const SUGGESTIONS = [
   '把已导入的教材资料构建成课程（严格按 course-material-processor 技能执行）',
@@ -47,203 +16,24 @@ const SUGGESTIONS = [
   '讲讲课程构建流程：教材资料是怎么变成课程的？'
 ]
 
-function toolIcon(name: string): React.JSX.Element {
-  if (name === 'run_command') return <Terminal size={13} className="shrink-0 text-warn" />
-  if (name.includes('skill')) return <BookOpen size={13} className="shrink-0 text-tx2" />
-  if (name.includes('material')) return <Library size={13} className="shrink-0 text-tx2" />
-  if (name.includes('workspace')) return <FileText size={13} className="shrink-0 text-tx2" />
-  return <Wrench size={13} className="shrink-0 text-tx2" />
-}
-
-function compactInput(input: string): string {
-  try {
-    const obj = JSON.parse(input) as Record<string, unknown>
-    if (typeof obj['command'] === 'string') return obj['command']
-    if (typeof obj['relPath'] === 'string') return String(obj['relPath'])
-    if (typeof obj['name'] === 'string') return String(obj['name'])
-    if (typeof obj['id'] === 'string') return String(obj['id'])
-  } catch {
-    // 保持原文
-  }
-  return input
-}
-
-export function AgentChatPage({
-  onBack,
-  pendingPrompt,
-  onPromptConsumed
-}: {
-  onBack: () => void
-  /** 其他页面（学习路径页）直通过来的固定提示词：进入本页后自动发送一轮。 */
-  pendingPrompt?: string | null
-  onPromptConsumed?: () => void
-}): React.JSX.Element {
-  const [items, setItems] = useState<ChatItem[]>([])
+export function AgentChatPage({ onBack }: { onBack: () => void }): React.JSX.Element {
+  const { items, running, error, settings } = useAgentChat()
   const [input, setInput] = useState('')
-  const [running, setRunning] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [settings, setSettings] = useState<AgentSettingsView | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [mcpOpen, setMcpOpen] = useState(false)
 
-  const runIdRef = useRef<string | null>(null)
-  const sessionIdRef = useRef<string | null>(null)
-  const scrollRef = useRef<HTMLDivElement | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const send = useCallback((): void => {
+    agentChatStore.sendText(input)
+    setInput('')
+  }, [input])
 
-  useEffect(() => {
-    void window.api.agentSettingsGet().then((res) => {
-      if (res.ok) {
-        setSettings(res.data)
-        if (!res.data.configured) setSettingsOpen(true)
-      }
-    })
-    // 恢复跨重启的 DSH 会话上下文；失败则静默开新会话
-    const stored = localStorage.getItem(SESSION_KEY)
-    if (stored != null) {
-      void window.api.agentResume(stored).then((res) => {
-        if (res.ok && res.data === true) sessionIdRef.current = stored
-        else localStorage.removeItem(SESSION_KEY)
-      })
-    }
-  }, [])
-
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el != null) el.scrollTop = el.scrollHeight
-  }, [items])
-
-  useEffect(() => {
-    const unsubscribe = window.api.onAgentEvent(({ runId, event }) => {
-      if (runId !== runIdRef.current) return
-      applyEvent(event)
-    })
-    return unsubscribe
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const applyEvent = useCallback((event: AgentStreamEvent): void => {
-    setItems((prev) => {
-      const next = [...prev]
-      switch (event.type) {
-        case 'text-delta': {
-          const last = next[next.length - 1]
-          if (last != null && last.type === 'assistant') {
-            next[next.length - 1] = { ...last, text: last.text + event.text }
-          } else {
-            next.push({ type: 'assistant', text: event.text })
-          }
-          break
-        }
-        case 'tool-call':
-          next.push({
-            type: 'tool',
-            toolCallId: event.toolCallId,
-            toolName: event.toolName,
-            input: event.input
-          })
-          break
-        case 'tool-result': {
-          const idx = next.findIndex(
-            (it) => it.type === 'tool' && it.toolCallId === event.toolCallId
-          )
-          if (idx >= 0) {
-            const it = next[idx] as Extract<ChatItem, { type: 'tool' }>
-            next[idx] = { ...it, output: event.output }
-          } else {
-            next.push({
-              type: 'tool',
-              toolCallId: event.toolCallId,
-              toolName: event.toolName,
-              input: '',
-              output: event.output
-            })
-          }
-          break
-        }
-        case 'tool-error': {
-          const idx = next.findIndex(
-            (it) => it.type === 'tool' && it.toolCallId === event.toolCallId
-          )
-          if (idx >= 0) {
-            const it = next[idx] as Extract<ChatItem, { type: 'tool' }>
-            next[idx] = { ...it, error: event.error }
-          }
-          break
-        }
-        case 'finish':
-        case 'aborted':
-          setRunning(false)
-          break
-        case 'error':
-          setError(event.message)
-          setRunning(false)
-          break
-      }
-      return next
-    })
-  }, [])
-
-  const sendText = useCallback(
-    async (raw: string): Promise<void> => {
-      const text = raw.trim()
-      if (text.length === 0 || running) return
-
-      setInput('')
-      setError(null)
-      setRunning(true)
-      setItems((prev) => [...prev, { type: 'user', text }])
-
-      // 对话上下文由 DSH 会话持有，这里只发本轮文本
-      const res = await window.api.agentChat({ sessionId: sessionIdRef.current, text })
-      if (!res.ok) {
-        setError(res.error)
-        setRunning(false)
-        return
-      }
-      sessionIdRef.current = res.data.sessionId
-      localStorage.setItem(SESSION_KEY, res.data.sessionId)
-      runIdRef.current = res.data.runId
+  const saveSettings = useCallback(
+    async (patch: AgentSettingsPatch): Promise<void> => {
+      const next = await agentChatStore.saveSettings(patch)
+      if (next != null) setSettingsOpen(false)
     },
-    [running]
+    []
   )
-
-  const send = useCallback((): Promise<void> => sendText(input), [sendText, input])
-
-  // 其他页面直通的固定提示词：空闲时自动发送一轮（ref 去重防 StrictMode 双发/重复发送）
-  const lastPromptRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (pendingPrompt == null || pendingPrompt === lastPromptRef.current) return
-    if (running) return
-    lastPromptRef.current = pendingPrompt
-    onPromptConsumed?.()
-    void sendText(pendingPrompt)
-  }, [pendingPrompt, running, sendText, onPromptConsumed])
-
-  const newConversation = useCallback((): void => {
-    if (runIdRef.current != null) void window.api.agentAbort(runIdRef.current)
-    sessionIdRef.current = null
-    localStorage.removeItem(SESSION_KEY)
-    runIdRef.current = null
-    setItems([])
-    setError(null)
-    setRunning(false)
-    textareaRef.current?.focus()
-  }, [])
-
-  const stop = useCallback((): void => {
-    if (runIdRef.current != null) void window.api.agentAbort(runIdRef.current)
-  }, [])
-
-  const saveSettings = useCallback(async (patch: AgentSettingsPatch): Promise<void> => {
-    const res = await window.api.agentSettingsSet(patch)
-    if (res.ok) {
-      setSettings(res.data)
-      setSettingsOpen(false)
-    } else {
-      setError(res.error)
-    }
-  }, [])
 
   const configured = settings?.configured ?? false
 
@@ -272,7 +62,7 @@ export function AgentChatPage({
           <button
             type="button"
             title="开始新对话（当前上下文保留在 DSH 会话中）"
-            onClick={newConversation}
+            onClick={agentChatStore.newConversation}
             className="flex h-8 items-center rounded-md px-2.5 text-[12.5px] text-tx2 hover:bg-panel-hover hover:text-tx"
           >
             新对话
@@ -310,8 +100,10 @@ export function AgentChatPage({
         </div>
       )}
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        {items.length === 0 ? (
+      <ChatTranscript
+        items={items}
+        running={running}
+        empty={
           <div className="mx-auto flex max-w-[560px] flex-col items-center gap-4 pt-16">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-panel">
               <Sparkles size={22} className="text-acc" />
@@ -330,77 +122,13 @@ export function AgentChatPage({
               ))}
             </div>
           </div>
-        ) : (
-          <div className="mx-auto flex max-w-[760px] flex-col gap-3">
-            {items.map((it, i) =>
-              it.type === 'user' ? (
-                <div key={i} className="flex justify-end">
-                  <div className="max-w-[85%] whitespace-pre-wrap rounded-lg rounded-br-sm bg-acc px-3 py-2 text-[13px] leading-relaxed text-white">
-                    {it.text}
-                  </div>
-                </div>
-              ) : it.type === 'assistant' ? (
-                <div
-                  key={i}
-                  className="max-w-[95%] whitespace-pre-wrap rounded-lg rounded-bl-sm border border-line bg-panel px-3 py-2 text-[13px] leading-relaxed text-tx"
-                >
-                  {it.text}
-                </div>
-              ) : (
-                <details
-                  key={it.toolCallId}
-                  className="max-w-[95%] rounded-lg border border-line bg-bg2 px-3 py-2 text-[12.5px]"
-                >
-                  <summary className="flex cursor-pointer list-none items-center gap-2 text-tx2">
-                    {toolIcon(it.toolName)}
-                    <span className="font-mono text-tx">{it.toolName}</span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-tx2">
-                      {compactInput(it.input)}
-                    </span>
-                    {it.error != null && <span className="text-bad">出错</span>}
-                    {it.output == null && it.error == null && <span className="text-warn">运行中…</span>}
-                  </summary>
-                  <div className="mt-2 flex flex-col gap-2 border-t border-line pt-2">
-                    <div>
-                      <div className="mb-1 text-[11px] font-semibold text-tx2">输入</div>
-                      <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-bg p-2 font-mono text-[11.5px] text-tx2">
-                        {it.input}
-                      </pre>
-                    </div>
-                    {it.output != null && (
-                      <div>
-                        <div className="mb-1 text-[11px] font-semibold text-tx2">输出</div>
-                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg p-2 font-mono text-[11.5px] text-tx">
-                          {it.output}
-                        </pre>
-                      </div>
-                    )}
-                    {it.error != null && (
-                      <div>
-                        <div className="mb-1 text-[11px] font-semibold text-bad">错误</div>
-                        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-bg p-2 font-mono text-[11.5px] text-bad">
-                          {it.error}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                </details>
-              )
-            )}
-            {running && (
-              <div className="flex items-center gap-2 text-[12px] text-tx2">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-track border-t-acc" />
-                助教工作中…
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+        }
+      />
 
       {error != null && (
         <div className="mx-auto mb-2 flex w-[calc(100%-32px)] max-w-[760px] items-start justify-between gap-3 rounded-lg border border-bad/50 bg-bad/10 px-3 py-2 text-[12.5px] text-bad">
           <span className="min-w-0 break-all">{error}</span>
-          <button type="button" aria-label="关闭" onClick={() => setError(null)}>
+          <button type="button" aria-label="关闭" onClick={agentChatStore.dismissError}>
             <X size={14} />
           </button>
         </div>
@@ -409,13 +137,12 @@ export function AgentChatPage({
       <div className="shrink-0 px-4 pb-4">
         <div className="mx-auto flex max-w-[760px] items-end gap-2 rounded-lg border border-line bg-panel p-2 focus-within:border-acc">
           <textarea
-            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
-                void send()
+                send()
               }
             }}
             rows={2}
@@ -425,7 +152,7 @@ export function AgentChatPage({
           {running ? (
             <button
               type="button"
-              onClick={stop}
+              onClick={agentChatStore.stop}
               className="flex h-8 items-center gap-1.5 rounded-md bg-panel-hover px-3 text-[12.5px] text-tx hover:bg-track"
             >
               <Square size={12} />
@@ -434,7 +161,7 @@ export function AgentChatPage({
           ) : (
             <button
               type="button"
-              onClick={() => void send()}
+              onClick={send}
               disabled={input.trim().length === 0}
               className="flex h-8 items-center gap-1.5 rounded-md bg-acc px-3 text-[12.5px] text-white hover:bg-acc-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -446,11 +173,7 @@ export function AgentChatPage({
       </div>
 
       {settingsOpen && (
-        <AgentSettingsModal
-          settings={settings}
-          onClose={() => setSettingsOpen(false)}
-          onSave={saveSettings}
-        />
+        <AgentSettingsModal settings={settings} onClose={() => setSettingsOpen(false)} onSave={saveSettings} />
       )}
 
       {mcpOpen && <McpManagerModal onClose={() => setMcpOpen(false)} />}
@@ -862,4 +585,4 @@ function McpManagerModal({ onClose }: { onClose: () => void }): React.JSX.Elemen
       </div>
     </div>
   )
-}           
+}

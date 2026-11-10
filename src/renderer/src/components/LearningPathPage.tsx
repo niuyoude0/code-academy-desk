@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import {
   ArrowLeft,
   Bot,
@@ -12,13 +13,18 @@ import {
   BookOpen,
   Pencil,
   RotateCcw,
-  RefreshCcwDot
+  RefreshCcwDot,
+  FolderCode,
+  X
 } from 'lucide-react'
 import type { CoursePathView } from '../../../shared/ipc'
 import type { PathEntry, ProgressFile } from '../../../shared/learning-path-schema'
 import type { LessonDocument, QuizBlock } from '../../../shared/lesson-schema'
 import { BlockRenderer } from './blocks/BlockRenderer'
 import { QuizCard, type QuizAnswerState } from './blocks/QuizCard'
+import { AgentSidePanel } from './AgentSidePanel'
+import { FileWorkbenchView } from './FileWorkbenchView'
+import { agentChatStore } from '../agentChatStore'
 
 /**
  * P5.4 学习路径页（知识点驱动，2026-11-10 用户六原则拍板）：
@@ -58,12 +64,13 @@ export function LearningPathPage({
   courseId,
   title,
   onBack,
-  onAskAgent
+  onOpenAgent
 }: {
   courseId: string
   title: string
   onBack: () => void
-  onAskAgent: (prompt: string) => void
+  /** 侧栏助教「去配置 Key」时跳转全页助教 */
+  onOpenAgent: () => void
 }): React.JSX.Element {
   const [view, setView] = useState<CoursePathView | null>(null)
   const [loadErr, setLoadErr] = useState<string | null>(null)
@@ -74,6 +81,17 @@ export function LearningPathPage({
   const [answers, setAnswers] = useState<Record<string, QuizAnswerState>>({})
   const [codingPassed, setCodingPassed] = useState(false)
   const [busy, setBusy] = useState(false)
+  // P6 三栏工作台：右侧「助教/文件」面板（可拖拽宽度，autoSaveId 持久化布局）
+  const [sideTab, setSideTab] = useState<'agent' | 'files' | null>(null)
+
+  /** 学习页内的助教入口：打开右侧助教栏 + 固定提示词直通（共享 DSH 会话，空闲即发/忙则挂起）。 */
+  const askAgent = useCallback(
+    (prompt: string): void => {
+      setSideTab('agent')
+      agentChatStore.requestPrompt(prompt)
+    },
+    []
+  )
 
   const refresh = useCallback(async (): Promise<void> => {
     const res = await window.api.pathGet(courseId)
@@ -237,10 +255,30 @@ export function LearningPathPage({
             type="button"
             disabled={selectedKpId == null}
             title={selectedKpId == null ? '先在左侧选择一个知识点' : '按技能要求让 AI 助教重新生成当前知识点课件'}
-            onClick={() => onAskAgent(buildGenerationPrompt(courseId, selectedKpId ?? ''))}
+            onClick={() => askAgent(buildGenerationPrompt(courseId, selectedKpId ?? ''))}
             className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] text-tx hover:bg-panel-hover disabled:opacity-40"
           >
             <RefreshCcwDot size={14} className="text-tx2" /> 重新生成课件
+          </button>
+          <button
+            type="button"
+            title="右侧工作台：AI 助教（与全页助教共用会话）"
+            onClick={() => setSideTab((t) => (t === 'agent' ? null : 'agent'))}
+            className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] ${
+              sideTab === 'agent' ? 'bg-acc/10 text-acc' : 'text-tx hover:bg-panel-hover'
+            }`}
+          >
+            <Bot size={14} /> 助教
+          </button>
+          <button
+            type="button"
+            title="右侧工作台：文件工作区（课程沙盒 + git 快照）"
+            onClick={() => setSideTab((t) => (t === 'files' ? null : 'files'))}
+            className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] ${
+              sideTab === 'files' ? 'bg-acc/10 text-acc' : 'text-tx hover:bg-panel-hover'
+            }`}
+          >
+            <FolderCode size={14} /> 文件
           </button>
           <button
             type="button"
@@ -251,7 +289,7 @@ export function LearningPathPage({
           </button>
           <button
             type="button"
-            onClick={() => onAskAgent(`查看课程「${courseId}」的学习进度（cad_get_path 与 cad_get_progress），并简要总结当前学习状态。`)}
+            onClick={() => askAgent(`查看课程「${courseId}」的学习进度（cad_get_path 与 cad_get_progress），并简要总结当前学习状态。`)}
             className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] text-tx hover:bg-panel-hover"
           >
             <Bot size={14} className="text-tx2" /> 问助教
@@ -281,95 +319,101 @@ export function LearningPathPage({
           </div>
           <button
             type="button"
-            onClick={() => onAskAgent(buildSkeletonPrompt(courseId))}
+            onClick={() => askAgent(buildSkeletonPrompt(courseId))}
             className="flex h-9 items-center gap-2 rounded-md bg-acc px-4 text-[13px] font-medium text-white hover:opacity-90"
           >
             <Bot size={15} /> 让 AI 助教建学习路径
           </button>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1">
-          {/* 左列：KP 列表（IDEA 树式扁平行，无行分隔线） */}
-          <div className="flex w-[300px] shrink-0 flex-col overflow-y-auto border-r border-line bg-panel py-2">
-            {kps.map((kp, i) => {
-              const st = stateOf(kp)
-              const isUnlocked = unlocked(kp.id)
-              const shown: KpUiState = isUnlocked || st === 'completed' || st === 'skipped' || st === 'learning' ? st : 'locked'
-              const selected = kp.id === selectedKpId
-              return (
-                <div
-                  key={kp.id}
-                  className={`mx-2 flex flex-col gap-1.5 rounded-md px-2.5 py-2.5 ${selected ? 'bg-acc/10' : 'hover:bg-panel-hover'}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[10.5px] text-tx2/70">{String(i + 1).padStart(2, '0')}</span>
-                        <span className="truncate text-[13px] font-medium text-tx">{kp.title}</span>
+        <div className="min-h-0 flex-1">
+          <PanelGroup direction="horizontal" autoSaveId="cad-workbench-v1" className="h-full">
+            {/* 左列：KP 列表（IDEA 树式扁平行，无行分隔线；可拖拽宽度） */}
+            <Panel defaultSize={23} minSize={13} maxSize={40}>
+              <div className="flex h-full flex-col overflow-y-auto border-r border-line bg-panel py-2">
+                {kps.map((kp, i) => {
+                  const st = stateOf(kp)
+                  const isUnlocked = unlocked(kp.id)
+                  const shown: KpUiState = isUnlocked || st === 'completed' || st === 'skipped' || st === 'learning' ? st : 'locked'
+                  const selected = kp.id === selectedKpId
+                  return (
+                    <div
+                      key={kp.id}
+                      className={`mx-2 flex flex-col gap-1.5 rounded-md px-2.5 py-2.5 ${selected ? 'bg-acc/10' : 'hover:bg-panel-hover'}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[10.5px] text-tx2/70">{String(i + 1).padStart(2, '0')}</span>
+                            <span className="truncate text-[13px] font-medium text-tx">{kp.title}</span>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2">
+                            {stateBadge(shown)}
+                            {kp.bookPage != null && <span className="text-[11px] text-tx2/70">书内 p.{kp.bookPage}</span>}
+                          </div>
+                        </div>
                       </div>
-                      <div className="mt-0.5 flex items-center gap-2">
-                        {stateBadge(shown)}
-                        {kp.bookPage != null && <span className="text-[11px] text-tx2/70">书内 p.{kp.bookPage}</span>}
+                      <div className="flex items-center gap-1.5">
+                        {(shown === 'pending' || shown === 'failed') && isUnlocked && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => askAgent(buildGenerationPrompt(courseId, kp.id))}
+                            className="flex h-7 items-center gap-1.5 rounded border border-acc/60 px-2 text-[12px] text-acc hover:bg-panel-hover disabled:opacity-50"
+                          >
+                            <Bot size={12} /> {shown === 'failed' ? '重试生成' : '生成课件'}
+                          </button>
+                        )}
+                        {(shown === 'ready' || shown === 'learning') && (
+                          <button
+                            type="button"
+                            onClick={() => void loadLesson(kp)}
+                            className="flex h-7 items-center gap-1.5 rounded bg-acc px-2 text-[12px] font-medium text-white hover:bg-acc-hover"
+                          >
+                            <Play size={12} /> {shown === 'learning' ? '继续学习' : '开始学习'}
+                          </button>
+                        )}
+                        {shown === 'completed' && (
+                          <button
+                            type="button"
+                            onClick={() => void loadLesson(kp)}
+                            className="flex h-7 items-center gap-1.5 rounded border border-line px-2 text-[12px] text-tx2 hover:bg-panel-hover"
+                          >
+                            <RotateCcw size={12} /> 回顾
+                          </button>
+                        )}
+                        {shown === 'skipped' && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void run(() => window.api.kpStart(courseId, kp.id))}
+                            className="flex h-7 items-center gap-1.5 rounded border border-line px-2 text-[12px] text-tx2 hover:bg-panel-hover disabled:opacity-50"
+                          >
+                            <Play size={12} /> 重新学
+                          </button>
+                        )}
+                        {isUnlocked && shown !== 'completed' && shown !== 'skipped' && shown !== 'locked' && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void run(() => window.api.kpSkip(courseId, kp.id))}
+                            className="flex h-7 items-center gap-1.5 rounded border border-line px-2 text-[12px] text-tx2 hover:bg-panel-hover disabled:opacity-50"
+                          >
+                            <SkipForward size={12} /> 跳过
+                          </button>
+                        )}
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {(shown === 'pending' || shown === 'failed') && isUnlocked && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => onAskAgent(buildGenerationPrompt(courseId, kp.id))}
-                        className="flex h-7 items-center gap-1.5 rounded border border-acc/60 px-2 text-[12px] text-acc hover:bg-panel-hover disabled:opacity-50"
-                      >
-                        <Bot size={12} /> {shown === 'failed' ? '重试生成' : '生成课件'}
-                      </button>
-                    )}
-                    {(shown === 'ready' || shown === 'learning') && (
-                      <button
-                        type="button"
-                        onClick={() => void loadLesson(kp)}
-                        className="flex h-7 items-center gap-1.5 rounded bg-acc px-2 text-[12px] font-medium text-white hover:bg-acc-hover"
-                      >
-                        <Play size={12} /> {shown === 'learning' ? '继续学习' : '开始学习'}
-                      </button>
-                    )}
-                    {shown === 'completed' && (
-                      <button
-                        type="button"
-                        onClick={() => void loadLesson(kp)}
-                        className="flex h-7 items-center gap-1.5 rounded border border-line px-2 text-[12px] text-tx2 hover:bg-panel-hover"
-                      >
-                        <RotateCcw size={12} /> 回顾
-                      </button>
-                    )}
-                    {shown === 'skipped' && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void run(() => window.api.kpStart(courseId, kp.id))}
-                        className="flex h-7 items-center gap-1.5 rounded border border-line px-2 text-[12px] text-tx2 hover:bg-panel-hover disabled:opacity-50"
-                      >
-                        <Play size={12} /> 重新学
-                      </button>
-                    )}
-                    {isUnlocked && shown !== 'completed' && shown !== 'skipped' && shown !== 'locked' && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void run(() => window.api.kpSkip(courseId, kp.id))}
-                        className="flex h-7 items-center gap-1.5 rounded border border-line px-2 text-[12px] text-tx2 hover:bg-panel-hover disabled:opacity-50"
-                      >
-                        <SkipForward size={12} /> 跳过
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                  )
+                })}
+              </div>
+            </Panel>
 
-          {/* 右侧：学习视图（豆包式居中阅读列 + 压平的完成判定门） */}
-          <div className="flex min-h-0 flex-1 flex-col">
+            <PanelResizeHandle className="w-px bg-transparent transition-colors hover:bg-acc/40 data-[resize-handle-active]:bg-acc/40" />
+
+            {/* 中列：学习视图（豆包式居中阅读列 + 压平的完成判定门） */}
+            <Panel minSize={30}>
+              <div className="flex h-full min-h-0 flex-col">
             {selectedKp == null || doc == null ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
                 {lessonErr != null ? (
@@ -378,7 +422,7 @@ export function LearningPathPage({
                     <div className="text-[13px] text-tx2">{lessonErr}</div>
                     <button
                       type="button"
-                      onClick={() => onAskAgent(buildGenerationPrompt(courseId, selectedKp?.id ?? ''))}
+                      onClick={() => askAgent(buildGenerationPrompt(courseId, selectedKp?.id ?? ''))}
                       className="mt-1 flex h-8 items-center gap-1.5 rounded-md border border-acc/60 px-3 text-[13px] text-acc hover:bg-panel-hover"
                     >
                       <Pencil size={13} /> 重新生成课件
@@ -412,11 +456,60 @@ export function LearningPathPage({
                 ratio={ratio}
                 busy={busy}
                 onComplete={doComplete}
-                onAskAgent={onAskAgent}
+                onAskAgent={askAgent}
                 courseId={courseId}
               />
             )}
-          </div>
+              </div>
+            </Panel>
+
+            {/* 右栏：工作台（AI 助教 / 文件工作区，可拖拽宽度，autoSaveId 持久化） */}
+            {sideTab != null && (
+              <>
+                <PanelResizeHandle className="w-px bg-transparent transition-colors hover:bg-acc/40 data-[resize-handle-active]:bg-acc/40" />
+                <Panel defaultSize={32} minSize={20} maxSize={60}>
+                  <div className="flex h-full flex-col border-l border-line bg-panel">
+                    <div className="flex h-8 shrink-0 items-center gap-1 border-b border-line px-2">
+                      <button
+                        type="button"
+                        onClick={() => setSideTab('agent')}
+                        className={`flex h-6 items-center gap-1 rounded px-2 text-[11.5px] ${
+                          sideTab === 'agent' ? 'bg-acc/10 font-medium text-acc' : 'text-tx2 hover:bg-panel-hover'
+                        }`}
+                      >
+                        <Bot size={12} /> 助教
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSideTab('files')}
+                        className={`flex h-6 items-center gap-1 rounded px-2 text-[11.5px] ${
+                          sideTab === 'files' ? 'bg-acc/10 font-medium text-acc' : 'text-tx2 hover:bg-panel-hover'
+                        }`}
+                      >
+                        <FolderCode size={12} /> 文件
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="关闭工作台"
+                        title="关闭工作台"
+                        onClick={() => setSideTab(null)}
+                        className="ml-auto flex h-6 w-6 items-center justify-center rounded text-tx2 hover:bg-panel-hover"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                    <div className="min-h-0 flex-1">
+                      {sideTab === 'agent' ? (
+                        <AgentSidePanel onOpenFull={onOpenAgent} />
+                      ) : (
+                        <FileWorkbenchView courseId={courseId} />
+                      )}
+                    </div>
+                  </div>
+                </Panel>
+              </>
+            )}
+          </PanelGroup>
         </div>
       )}
     </div>
@@ -439,7 +532,7 @@ function StudyView({
   ratio,
   busy,
   onComplete,
-  onAskAgent,
+  onAskAgent: askAgent,
   courseId
 }: {
   kp: PathEntry
@@ -489,7 +582,7 @@ function StudyView({
                   key={b.id}
                   block={b}
                   courseId={courseId}
-                  onAskAgent={onAskAgent}
+                  onAskAgent={askAgent}
                   onCodingPassed={b.type === 'coding' ? onCodingPassed : undefined}
                 />
               )
@@ -533,7 +626,7 @@ function StudyView({
             <button
               type="button"
               onClick={() =>
-                onAskAgent(
+                askAgent(
                   `我在课程「${courseId}」的知识点「${kp.id}（${kp.title}）」判定未达标。请按技能要求帮我重讲这个知识点的薄弱处（依据 quiz 易错点），并视需要重新生成更好的课件。`
                 )
               }

@@ -1,29 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CourseHomePage } from './components/CourseHomePage'
 import { AgentChatPage } from './components/AgentChatPage'
 import { LearningPathPage } from './components/LearningPathPage'
+import { agentChatStore } from './agentChatStore'
 
 /**
- * 顶层视图：课程首页 / 学习路径 / AI 助教（2026-11-11 校对页整体移除，改「一键重新生成课件」）。
+ * 顶层视图：课程首页 / 学习路径 / AI 助教（P6 三栏工作台起，学习页内嵌助教侧栏，
+ * 与全页助教共用 agentChatStore 单例会话；2026-11-11 校对页移除，改「一键重新生成课件」）。
  * 页面常驻挂载（display 切换），来回切换保留聊天记录与学习页状态。
- * 学习页的「生成/重新生成课件/问助教」经 pendingPrompt 把固定提示词直通助教页自动发送。
  */
 export default function App(): React.JSX.Element {
   const [view, setView] = useState<'home' | 'agent' | 'course'>('home')
-  const [returnTo, setReturnTo] = useState<'home' | 'course'>('home')
   const [activeCourse, setActiveCourse] = useState<{ id: string; title: string } | null>(null)
-  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
+
+  // 共享聊天 store：拉设置 + 恢复 DSH 会话 + 订阅流事件（应用级一次）
+  useEffect(() => {
+    agentChatStore.init()
+  }, [])
 
   const openCourse = (id: string, courseTitle: string): void => {
     setActiveCourse({ id, title: courseTitle })
     setView('course')
-  }
-
-  /** 学习页/首页 → 助教：带提示词跳转，助教页自动发送一轮。 */
-  const askAgent = (prompt: string): void => {
-    if (view === 'course' || view === 'home') setReturnTo(view)
-    setPendingPrompt(prompt)
-    setView('agent')
   }
 
   return (
@@ -38,16 +35,12 @@ export default function App(): React.JSX.Element {
             courseId={activeCourse.id}
             title={activeCourse.title}
             onBack={() => setView('home')}
-            onAskAgent={askAgent}
+            onOpenAgent={() => setView('agent')}
           />
         </div>
       )}
       <div className={view === 'agent' ? 'h-full' : 'hidden'}>
-        <AgentChatPage
-          onBack={() => setView(returnTo)}
-          pendingPrompt={pendingPrompt}
-          onPromptConsumed={() => setPendingPrompt(null)}
-        />
+        <AgentChatPage onBack={() => setView(activeCourse != null ? 'course' : 'home')} />
       </div>
     </div>
   )

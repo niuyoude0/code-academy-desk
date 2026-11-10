@@ -15,7 +15,9 @@ import type {
   CoursePathView,
   ExerciseDocument,
   RunnerRunInput,
-  RunResult
+  RunResult,
+  WorkspaceNode,
+  WorkspaceWriteResult
 } from '../shared/ipc'
 import type { ProgressFile } from '../shared/learning-path-schema'
 import type { CoursePackage, CourseIndexEntry, ImportResult } from '../shared/course-schema'
@@ -70,6 +72,12 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IpcChannel.KpComplete, input),
   lessonGet: (courseId: string, chapterId: string, lessonId: string): Promise<IpcResult<unknown>> =>
     ipcRenderer.invoke(IpcChannel.LessonGet, { courseId, chapterId, lessonId }),
+  workspaceTree: (courseId: string): Promise<IpcResult<WorkspaceNode[]>> =>
+    ipcRenderer.invoke(IpcChannel.WorkspaceTree, { courseId }),
+  workspaceRead: (courseId: string, relPath: string): Promise<IpcResult<{ content: string }>> =>
+    ipcRenderer.invoke(IpcChannel.WorkspaceRead, { courseId, path: relPath }),
+  workspaceWrite: (courseId: string, relPath: string, content: string): Promise<IpcResult<WorkspaceWriteResult>> =>
+    ipcRenderer.invoke(IpcChannel.WorkspaceWrite, { courseId, path: relPath, content }),
   exerciseGet: (courseId: string, exerciseId: string): Promise<IpcResult<ExerciseDocument>> =>
     ipcRenderer.invoke(IpcChannel.ExerciseGet, { courseId, exerciseId }),
   runnerRun: (input: RunnerRunInput): Promise<IpcResult<RunResult>> =>

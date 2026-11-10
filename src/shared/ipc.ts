@@ -37,6 +37,9 @@ export const IpcChannel = {
   ExerciseGet: 'exercise:get',
   RunnerRun: 'runner:run',
   CourseAssetRead: 'course:asset:read',
+  WorkspaceTree: 'workspace:tree',
+  WorkspaceRead: 'workspace:read',
+  WorkspaceWrite: 'workspace:write',
   InteractiveCompile: 'interactive:compile',
   InteractiveBridge: 'interactive:bridge'
 } as const
@@ -161,6 +164,19 @@ export type { ExerciseDocument } from './course-v2-schema'
 
 /* ===== Runner 域（P8 核心 + P5.8 编程题判定） ===== */
 
+/** P7 文件工作区节点（扁平树列表；.git/点文件不返回）。 */
+export interface WorkspaceNode {
+  name: string
+  path: string
+  type: 'file' | 'dir'
+  size?: number
+}
+
+/** 写入结果：commit = isomorphic-git 快照 oid（快照失败为 null，写入本身已保留）。 */
+export interface WorkspaceWriteResult {
+  commit: string | null
+}
+
 export interface RunnerTestResult {
   id: string
   name: string
@@ -232,6 +248,10 @@ export interface DesktopApi {
   kpComplete(input: KpCompleteInput): Promise<IpcResult<ProgressFile>>
   /** 读课件文档（学习视图渲染用） */
   lessonGet(courseId: string, chapterId: string, lessonId: string): Promise<IpcResult<unknown>>
+  /** P7 文件工作区：课程沙盒目录 tree/read/write（写入自动 git 快照） */
+  workspaceTree(courseId: string): Promise<IpcResult<WorkspaceNode[]>>
+  workspaceRead(courseId: string, relPath: string): Promise<IpcResult<{ content: string }>>
+  workspaceWrite(courseId: string, relPath: string, content: string): Promise<IpcResult<WorkspaceWriteResult>>
   /** 读练习文档（编程题题面/起步文件/测试） */
   exerciseGet(courseId: string, exerciseId: string): Promise<IpcResult<ExerciseDocument>>
   /** 本机运行编程题（P8 Runner：临时工作区/超时杀树/stdin-stdout 测试判定） */
