@@ -48,6 +48,8 @@ import {
 } from './services/mcpServers'
 import type { AgentSettingsPatch, AgentTurnInput, McpServerEntry } from '../shared/ipc'
 import { registerPathIpc } from './pathIpc'
+import { registerReviewIpc } from './reviewIpc'
+import { registerRunnerIpc } from './runnerIpc'
 import { registerInteractiveProtocolScheme, registerInteractiveIpc } from './interactiveIpc'
 
 // cad-i:// 沙箱协议必须在 app ready 前注册
@@ -384,6 +386,8 @@ app.whenReady().then(() => {
   registerCourseIpc(join(userData, 'courses'))
   registerMaterialIpc(join(userData, 'materials'))
   registerPathIpc(join(userData, 'courses'))
+  registerReviewIpc(join(userData, 'courses'), join(userData, 'materials'))
+  registerRunnerIpc(join(userData, 'courses'), join(userData, 'workspace'), join(app.getAppPath(), 'resources', 'dsh-runtime', 'node24', 'node.exe'))
   registerInteractiveIpc(join(userData, 'courses'))
   const workspaceRoot = join(userData, 'workspace')
   mkdirSync(workspaceRoot, { recursive: true })

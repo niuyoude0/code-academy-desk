@@ -30,7 +30,7 @@
 | 教材资料导入（book-prep-ocr OCR 产物原样存层） | ✅已完成（P5 存层） |
 | 技能系统（agentskills.io SKILL.md：扫描/校验/安装/内置技能首发复制） | ✅已完成（MVP） |
 | 技能 v2 course-material-processor（知识点驱动主循环 A/B + 5 references + 示例） | ✅已完成（P5.3） |
-| 业务工具插件 @cad/course-tools（**20 工具**五组：建骨架/学习路径/课件内容/进度/资料读取） | ✅已完成（P5.2.5，真实 DSH 进程 registered 20 tools） |
+| 业务工具插件 @cad/course-tools（**21 工具**五组：建骨架/学习路径/课件内容/进度/资料读取） | ✅已完成（P5.2.5 基础 20 + P5.7 加 cad_save_kp_digest；真实 DSH 进程 registered 20 tools） |
 | AI 助教（DSH Agent：流式聊天/工具调用/审批/停止/新对话/会话恢复） | ✅已完成（P9.6） |
 | 权限档位（沙箱三档 + 审批联动） | ✅已完成（P9.7） |
 | MCP 服务器管理 UI | ✅已完成（P9.8） |
@@ -42,11 +42,11 @@
 | **interactive 沙箱执行**（esbuild 编译 + cad-i:// 沙箱 iframe + 白名单桥 12 chunk） | ✅已完成（P5.6，实机验收：滑杆联动/fs 桥读进度/错误卡回喂） |
 | ECharts 可视化 | ✅已完成（P5.5：A 层 ChartView + interactive EChart 桥） |
 | 算法动画/数据结构交互演示 | ✅已完成（P5.5：anim 8 模板帧解释器 + motion） |
-| 校对界面（预览+错误+页码抽查+代码人审+digest 提取定稿） | 📐已设计未实现（**P5.7，当前主线**） |
+| **课件校对界面**（BlockRenderer 所见即所得预览 + validate 面板 + 页码抽查 OCR 对照 + 人审状态流转 + digest 人工定稿） | ✅已完成（P5.7，实机验收全项通过） |
 | Source Manager：PDF/EPUB 静默预处理 | 📐已设计未实现（D3 决策已定） |
 | 三栏学习工作台 | 📐已设计未实现（P6） |
 | 文件工作区（文件树+CodeMirror 6+git 快照） | 未开始（P7） |
-| 统一 Runner（Python/C 等本地执行+判题） | 🔶部分完成（`shell.ts` 通用执行器已备；Runner 服务未建，P8） |
+| **统一 Runner**（Python/C/JS 本地执行 + stdin/stdout 测试判定） | ✅核心已完成（P5.8 顺带落 P8：`runner.ts` 服务 + 编程题接通；P7 文件工作区的通用命令执行可复用） |
 | 学习记录/进度 | 🔶部分完成（progress.json 学习状态轴已落地；P10 汇总报表/统计页未做） |
 | SQLite 持久化 | 🔶部分完成（策略已定：index.json 先行；阻塞项见 §10） |
 | MCP 工具接入（如 MySQL） | ✅已完成（DSH 原生 dsh-mcp-client + 管理 UI） |
@@ -80,7 +80,7 @@
   → Course Builder（DSH Agent + 技能 v2：主循环 A 建学习路径骨架 / B 单 KP 按需生成课件；
      course-tools 20 工具；validate_course_blocks 实时自检 + 容量机检）
   → 课程包 v2 持久化（coursePackageV2.ts + path.json/progress.json）
-  → 【P5.7 校对界面（人审/digest 提取定稿）——未实现】
+  → 【✅ P5.7 校对界面：ReviewPage 人审（validate/页码抽查/状态流转/digest 定稿）】
   → Course Renderer（✅ P5.5/P5.6：BlockRenderer 22 类块全量渲染 + interactive 沙箱）
   → 学习路径页完成判定（quiz≥2/3 解锁下一 KP）
 ```
@@ -93,9 +93,12 @@
 |---|---|---|
 | 主进程入口 | `src/main/index.ts` | 窗口/smoke/各域 IPC 注册（Course/Skill/Material/Path/Interactive/Agent/Mcp）/cad-i 协议注册（ready 前）/before-quit 关停 DSH |
 | 学习路径域 IPC | `src/main/pathIpc.ts` | path:get / kp:start|skip|complete / lesson:get / course:asset:read（IpcResult 信封） |
+| 校对域 IPC | `src/main/reviewIpc.ts` | review:get（全量课件+校验+人审总览）/ review:setStatus（failed 自动带现跑错误清单）/ review:validate / review:pageText（OCR 对照）/ kp:digest:save（人工定稿） |
+| 校对视图服务 | `src/main/services/reviewView.ts` | getReviewOverview（损坏课件折进 errors 不抛+book 块页码锚+容量 warn）/ validateLessonForReview / getOcrPageForCourse（ocrFile 直读优先，缺省按书内页码扫 ocr 页首头部自证） |
+| Runner 服务 | `src/main/services/runner.ts` | runExercise（python/c/javascript 档位；临时工作区；超时杀树；stdin/stdout 归一判定）/ normalizeRunnerLanguage / normalizeOutput / parseFiles；`runnerIpc.ts` 注册 exercise:get + runner:run |
 | interactive 域 | `src/main/interactiveIpc.ts` | interactive:compile / interactive:bridge / **cad-i:// 协议**（serve 沙箱 bootstrap+chunks；registerSchemesAsPrivileged 须在 ready 前顶层调用） |
 | DSH 运行时 | `src/main/services/dshRuntime.ts` | spawn node24+dsh（profile `cad`）、ensureProfile（幂等 junction/托管 patch）、JSON-RPC、approval→原生对话框、stop=杀进程懒重启；spawn env 注入 CAD_COURSES_ROOT/CAD_MATERIALS_ROOT |
-| 学习路径服务 | `src/main/services/learningPath.ts` | initPath/replacePath/saveKpLesson/startKp（解锁+回溯不拨指针）/completeKp（quiz≥2/3+forced）/skipKp/getLearningContext（digest 链+gap 占位） |
+| 学习路径服务 | `src/main/services/learningPath.ts` | initPath/replacePath/saveKpLesson/startKp（解锁+回溯不拨指针）/completeKp（quiz≥2/3+forced；**digest 缺省时从课件 summary/keypoint 自动提取入链——P5.4 残留已修**）/skipKp/getLearningContext（digest 链+gap 占位）/saveKpDigest（upsert：无条目建 learning 条目不推进解锁）/extractDigestFromDoc |
 | interactive 编译 | `src/main/services/interactiveCompile.ts` | **安全门 1 = 源码级 import 预扫描**（esbuild 会丢弃未使用 import 绕过 onResolve！）+ 具名导出校验（AI_NAMED_EXPORTS）+ 白名单重写插件 → `cad-i://bridge/chunks/*.js`；sha256 缓存；安全门 2 = 产物兜底 |
 | interactive 桥 | `src/main/services/interactiveBridge.ts` | fs 桥课程数据只读（readCourseFileText 限 manifest/path/progress/review/chapters/exercises ≤2MB；asset 复用 getCourseAssetDataUrl）+ getProgress/getManifest；路径限定全在主进程 |
 | KP 取料/统计/机检 | `src/main/services/kpSource.ts` / `courseStats.ts` / `lesson-quality.ts` | factsheet 节切取+ocr 页码自证 / 课程统计聚合 / 容量硬标准机检（warn 级） |
@@ -105,13 +108,14 @@
 | course-tools 插件单源 | `src/course-tools/index.ts` → `npm run build:plugin`（esbuild 176 模块 1.1MB） | 20 工具直接 import 应用源码；`@deepseek-ai/dsh-tools` external 经 profile junction 解析 |
 | 技能 v2 | `resources/skills/course-material-processor/` | SKILL.md（主循环 A/B）+ references/{factsheet-guide, blocks-catalog, quality-standard, interactive-bridge, workflow-build}.md + examples/lesson-example.json |
 | **块渲染器（渲染层）** | `src/renderer/src/components/blocks/` | BlockRenderer（22 类分派）/Md（GFM+KaTeX+shiki）/Katex/CodeView/MermaidView/ChartView（cad-dark 主题）/AnimView（8 模板帧解释器）/ImageView/InteractiveBlockView（沙箱宿主）/QuizCard/BlockShell/highlighter |
-| 学习路径页 | `src/renderer/src/components/LearningPathPage.tsx` | 七态 KP 表/生成提示词管道/学习视图/完成判定门；App.tsx 三视图路由（home/course/agent） |
+| 学习路径页 | `src/renderer/src/components/LearningPathPage.tsx` | 七态 KP 表/生成提示词管道/学习视图/完成判定门；header「课件校对」入口 |
+| 课件校对页 | `src/renderer/src/components/ReviewPage.tsx` | 左列章节分组课件表（人审+校验双徽标）/右侧校对视图：BlockRenderer 全量真渲染预览（interactive 同沙箱=所见即所得，quiz 走 QuizCard 可试答）+ validate 面板（error 红/warn 黄+重校验）+ digest 定稿编辑器（KP 课件）+ 页码抽查（chips+块角标→OCR 对照抽屉，±1 相邻页回查）；有错误课禁批准；App.tsx 四视图路由（home/course/review/agent） |
 | vendor | `resources/dsh-runtime/` | node24 + 全量 DSH + `node_modules/@cad/`（业务插件构建产物）；**git 忽略 node_modules/node24/spike-home**，重装步骤见 §12 |
 | 桥 chunk 产物 | `resources/interactive-bridge/`（git 忽略，`npm run build:bridge` 再生成） | bootstrap.html（沙箱文档）/bridge.css/chunks/*.js |
 
 ### IPC 通道（`src/shared/ipc.ts`，IpcResult<T> 信封）
 
-`app:info/ping`；`course:import/list/get/remove/export`（v1）+ `course:asset:read`（P5.5 image 块）；`skill:*`；`material:*`；`agent:chat/abort/resume/settings:*/event`；`mcp:*`；`path:get`、`kp:start|skip|complete`、`lesson:get`（P5.4）；`interactive:compile`、`interactive:bridge`（P5.6）。
+`app:info/ping`；`course:import/list/get/remove/export`（v1）+ `course:asset:read`（P5.5 image 块）；`skill:*`；`material:*`；`agent:chat/abort/resume/settings:*/event`；`mcp:*`；`path:get`、`kp:start|skip|complete`、`lesson:get`（P5.4）；`kp:digest:save`、`review:get/setStatus/validate/pageText`（P5.7）；`interactive:compile`、`interactive:bridge`（P5.6）。
 
 ## 5. 核心数据模型
 
@@ -153,7 +157,9 @@ JSONL 落 `$DSH_HOME/sessions/`；渲染层 localStorage 持 sessionId，重启�
 | 文件 | 关键导出 | 状态 |
 |---|---|---|
 | `dshRuntime.ts` | `resolveDshPaths`/`ensureProfile`/`createDshRuntime`/`extractJsonFrames`/`mapSessionEvent` | ✅ |
-| `learningPath.ts` | `initPath`/`replacePath`/`getPath`/`saveKpLesson`/`setKpGenFailed`/`startKp`/`completeKp`/`skipKp`/`getLearningContext`/`isKpUnlocked`/`deriveCurrentKp`/`getProgress` | ✅ |
+| `learningPath.ts` | `initPath`/`replacePath`/`getPath`/`saveKpLesson`/`setKpGenFailed`/`startKp`/`completeKp`（digest 自动提取兜底）/`skipKp`/`getLearningContext`/`isKpUnlocked`/`deriveCurrentKp`/`getProgress`/`saveKpDigest`/`extractDigestFromDoc` | ✅ |
+| `reviewView.ts` | `getReviewOverview`（损坏课件折进 errors）/`validateLessonForReview`/`getOcrPageForCourse`（ocrFile 直读/bookPage 扫描自证/邻页收集） | ✅ |
+| `reviewIpc.ts` | `registerReviewIpc`（review:get/setStatus/validate/pageText + kp:digest:save；failed 自动带现跑错误清单） | ✅ |
 | `interactiveCompile.ts` | `compileInteractiveComponent`/`scanImportSpecifiers`/`AI_IMPORT_MAP`/`AI_NAMED_EXPORTS`/`InteractiveCompileError`/`clearCompileCache` | ✅ |
 | `interactiveBridge.ts` | `readCourseFileText`/`readCourseAssetDataUrl`/`getCourseProgress`/`getCourseManifest`/`InteractiveBridgeError` | ✅ |
 | `interactiveIpc.ts` | `registerInteractiveProtocolScheme`（ready 前）/`registerInteractiveIpc`（协议 handler + 双通道） | ✅ |
@@ -161,8 +167,9 @@ JSONL 落 `$DSH_HOME/sessions/`；渲染层 localStorage 持 sessionId，重启�
 | `coursePackageV2.ts` | v2 全套 + `getCourseAssetDataUrl`（assets/ 前缀铁律+20MB+MIME 白名单） | ✅ |
 | `kpSource.ts`/`courseStats.ts`/`lesson-quality.ts` | `getKpSource`/`readMaterialPage`/`listMaterialFiles`；`getCourseStats`；`checkLessonCapacity`/`countTextWords` | ✅ |
 | `lesson-schema.ts` | 22 *BlockSchema + `BRIDGE_IMPORTS` + 单块类型导出（AnimBlock/QuizBlock/InteractiveBlock…） | ✅ |
-| `src/course-tools/index.ts` | 20 工具（build:plugin → vendor @cad/course-tools/lib/index.js） | ✅ |
+| `src/course-tools/index.ts` | 21 工具（P5.7 加 `cad_save_kp_digest`；build:plugin → vendor @cad/course-tools/lib/index.js） | ✅ |
 | 渲染层 blocks/ | 12 个组件（见 §4） | ✅ |
+| 渲染层 ReviewPage.tsx | 校对页（预览+validate+页码抽查+digest 定稿+状态流转） | ✅ |
 | `scripts/build-bridge-libs.mjs` | 12 chunk 预打包（react 入口须含 forwardRef/Component/createRoot；three+fiber+drei 同 chunk） | ✅ |
 | `scripts/seed-render-smoke.cjs` | 实机验收种子课程生成器（零 AI 消耗；含全部 22 类块样例） | ✅ |
 | `resources/dsh-runtime/spike-home/` | P5.0 spike 残留 | 可整体删除（已 git 忽略） |
@@ -182,12 +189,12 @@ JSONL 落 `$DSH_HOME/sessions/`；渲染层 localStorage 持 sessionId，重启�
 | **P5.4** | 学习路径页 + 完成判定门 | ✅ | 实机验收 |
 | **P5.5** | BlockRenderer（A 层库全量真渲染） | ✅ | vitest 102 + 实机目检全项 |
 | **P5.6** | interactive 编译管线（D2 裁决落地） | ✅ | vitest 118 + 实机验收全项 |
-| **P5.7** | 校对界面（人审 + digest 提取定稿） | 📐**当前主线** | — |
-| **P5.8** | 编程题接执行 | 📐（依赖 P8） | — |
-| P6/P7/P8/P10 | 三栏工作台/文件工作区/Runner/学习记录汇总 | 未开始（P8 有 shell.ts 备用） | — |
+| **P5.7** | 校对界面（人审 + digest 提取定稿；P5.4 残留修复） | ✅ | vitest 126 + 实机验收全项 |
+| **P5.8** | 编程题接执行（Runner 本地判，完成门转正） | ✅ | vitest 134 + 实机全链路 |
+| P6/P7/P8/P10 | 三栏工作台/文件工作区/学习记录汇总 | 未开始（**P8 核心执行器已随 P5.8 落地**：runner.ts） | — |
 | SQLite | better-sqlite3+Drizzle | 🔶阻塞（无 VS Build Tools） | — |
 
-**当前正在开发**：P5.7 校对界面。测试基线 **118/118（13 文件）**；验收三连 `npm run typecheck` → `npx vitest run` → `npm run smoke`（SMOKE_OK）。
+**当前正在开发**：P5.7/P5.8 ✅（2026-11-11）。下一主线 **P6 三栏工作台**。测试基线 **134/134（15 文件）**；验收三连 `npm run typecheck` → `npx vitest run` → `npm run smoke`（SMOKE_OK）。
 
 ## 8. 已确认技术决策（全部【已确认】，用户逐项拍板）
 
@@ -232,27 +239,39 @@ JSONL 落 `$DSH_HOME/sessions/`；渲染层 localStorage 持 sessionId，重启�
 | 15 | mermaid 节点标签含 `[` 必须双引号包裹（`A["a[i]"]`） | 已写进技能文档；渲染失败会红卡回喂原文 |
 | 16 | electron-vite **主进程改动不热更**（pid 不变），必须重启 dev；渲染层 HMR 正常 | 调试主进程时注意 |
 | 17 | App 三视图常驻挂载——返回再进课程不会重读课件，须点「开始学习」走 loadLesson | 已知行为 |
-| 18 | P5.4 残留：学习页判定通过未传 digest → 前序 completed KP 在 getLearningContext 中按 gap 展示 | **P5.7 处理** |
+| 18 | ~~P5.4 残留：学习页判定通过未传 digest~~ | **P5.7 已修**：completeKp 三级兜底（显式传入 > 链上已有 > 课件 summary/keypoint 自动提取）；Agent 另有 cad_save_kp_digest、校对页可人工定稿 |
 
-## 11. 下一步开发计划（当前主线：P5.7）
+## 11. 下一步开发计划（当前主线：P5.8）
 
-### P5.7 校对界面（当前第一步）
+### P5.7 校对界面（✅ 2026-11-11 完成）
 
-- **review.json 人审 UI**：逐课件预览（复用 BlockRenderer 全量渲染，interactive 用同一沙箱 iframe=所见即所得）/validate errors 展示/页码抽查（quote 块 ↔ ocr 原文对照）/状态流转 draft→valid|approved|failed（服务层 `setReviewStatusV2` 已备）
-- **digest 提取定稿**（P5.4 残留）：学习页判定通过时从课件 summary/Agent 汇报提取 digest 传入 completeKp；或校对页人工定稿
-- **顺带**：blocks-catalog.md 补 mermaid 括号提醒（若漏）；course_stats 展示位
-- 验收三连 + 种子课程实机走查
+- **校对页 `ReviewPage.tsx`**（学习页 header「课件校对」进入）：左列章节分组课件表（人审状态+校验双徽标+统计条）；右侧 = BlockRenderer 全量真渲染预览（**interactive 同沙箱=所见即所得**，quiz 走 QuizCard 可试答）+ validate 面板（error 红/warn 容量黄+重校验）+ 页码抽查（chips 与块角标 → OCR 对照抽屉：课件摘录↔ocr 原文，ocrFile 直读优先/bookPage 扫描自证/±1 邻页回查）+ **digest 定稿编辑器**（KP 课件）+ 状态流转（标记有效/批准/标记失败——failed 由主进程现跑校验写入错误清单；**有 error 禁批准**）
+- **digest 定稿三通道**（P5.4 残留修复）：① Agent `cad_save_kp_digest`（插件 21 工具，技能主循环 B 第 7 步）；② completeKp 三级兜底（显式传入 > 链上已有 > 课件 summary/keypoint 自动提取，链不断）；③ 校对页人工编辑（kp:digest:save）。saveKpDigest upsert：无条目建 learning 条目不推进解锁
+- **服务**：`reviewView.ts`（overview/validate/OCR 页）+ `reviewIpc.ts`（5 通道）+ ipc 契约 ReviewOverview/OcrPageResult
+- 顺带：blocks-catalog.md 补 mermaid 括号提醒；seed 脚本补 sourceRef/OCR 材料/坏课样本
+- **实机验收全项通过**：坏课铁律错误卡+禁批准 / 好课容量 warn / 页码抽查抽屉 / digest 保存落盘+回显 / valid 状态流转徽标
+- 未做（后续补）：course_stats 展示位；「重新生成」按钮（当前靠问助教）
 
-### P5.8 编程题接 Runner → P6 三栏工作台 → P7 文件工作区 → P8 统一 Runner → P10 学习记录
+### P5.8 编程题接执行（✅ 2026-11-11，顺带落 P8 核心）
 
-依赖链：P5.7→P5.8（digest/人审闭环后）；P8（Runner）→P5.8 编程题本地判。
-每步验收三连：`npm run typecheck` → `npx vitest run`（基线 **118/118**）→ `npm run smoke`。
+- **Runner 服务 `services/runner.ts`**（P8 核心）：临时工作区 `workspace/runs/<courseId>/<exerciseId>/`（每次清空重写）；语言档位 python（PATH，PYTHONUTF8=1）/ c（gcc 编译+运行）/ javascript（**vendor node24 优先**，缺省 PATH node）；spawn 直跑不经 shell（无引号转义面）；超时 taskkill /T /F 杀树；stdout 归一比对（CRLF/行尾空白/末尾空行）；C 档 compile.ok=false 不跑测试；工具链缺失给可读错误（「未找到 gcc：请安装 MinGW-w64」）
+- **IPC**：`exercise:get`（练习文档）+ `runner:run`（runnerIpc.ts；node24Path 由宿主传入）
+- **渲染层**：`CodingBlockView`（拉练习→题面 md→CodeMirror 6 编辑器[懒加载分包，@uiw/react-codemirror + lang-python/cpp/javascript + one-dark]→运行→逐测试 pass/fail 对照面板[期望/实际/stderr 可展开]→全过 onPassed）→ BlockRenderer coding 分支真组件（替换占位卡）
+- **完成门转正**：canComplete = quiz≥2/3 且（无编程题 或 codingPassed）；completeKp 带 codingPassed；应急门保留
+- **seed**：ex-insertion-sort（python 插入排序 stdin 题，3 测试）
+- **实机验收全链路**：起步代码 → 2/3（无序用例红，已有序/单元素天然过——判定区分精确）→ 写入正确实现 → 3/3 通过 ✓ → 完成门转正「编程题已通过」
+- 未做（后续补）：练习页内参考解查看；C 档真实 gcc 环境（本机无 gcc，vitest 覆盖了缺失错误路径）
+
+### P6 三栏工作台 → P7 文件工作区 → P10 学习记录
+
+依赖链：P5 闭环全部完成（digest/人审/编程判定）。
+每步验收三连：`npm run typecheck` → `npx vitest run`（基线 **134/134**）→ `npm run smoke`。
 
 ## 12. 新会话接手指南
 
 1. **先读**：本文件 → memory `C:\Users\35597\.zcode\cli\memories\projects\draft-3be231bf-37fe-41ce-9d7b-c87ef1852bc9-33ee712c3221b000\memory\code-academy-desk-project.md`（最全进度）与 `key-verified-facts-agent-stack.md` → `README.md`（路线图）。
-2. **代码入口**：主进程 `src/main/index.ts`；学习路径 `src/main/services/learningPath.ts` + `pathIpc.ts`；interactive 管线 `src/main/services/interactiveCompile.ts` + `interactiveIpc.ts`；课件契约 `src/shared/lesson-schema.ts`；渲染层 `src/renderer/src/App.tsx` + `components/LearningPathPage.tsx` + `components/blocks/`。
-3. **命令**：`npm run dev` / `npm run typecheck` / `npx vitest run`（基线 118）/ `npm run smoke` / `npm run dist`（exe）/ `npm run build:plugin`（course-tools）/ `npm run build:bridge`（interactive 桥 chunk）。
+2. **代码入口**：主进程 `src/main/index.ts`；学习路径 `src/main/services/learningPath.ts` + `pathIpc.ts`；校对 `src/main/services/reviewView.ts` + `reviewIpc.ts`；interactive 管线 `src/main/services/interactiveCompile.ts` + `interactiveIpc.ts`；课件契约 `src/shared/lesson-schema.ts`；渲染层 `src/renderer/src/App.tsx` + `components/LearningPathPage.tsx` + `components/ReviewPage.tsx` + `components/blocks/`。
+3. **命令**：`npm run dev` / `npm run typecheck` / `npx vitest run`（基线 126）/ `npm run smoke` / `npm run dist`（exe）/ `npm run build:plugin`（course-tools）/ `npm run build:bridge`（interactive 桥 chunk）。
 4. **git**：仓库已建立；`resources/dsh-runtime/{node_modules,node24,spike-home}` 与 `resources/interactive-bridge/` 按设计**不进仓库**。**全新 clone 后必须执行三步**再 dev：
    - `cd resources/dsh-runtime && npm install --ignore-scripts --no-audit --no-fund`（禁 --omit=optional；带 scripts 会因 sherpa-onnx GitHub 下载失败整树回滚）
    - node24：下载 npmmirror `v24.11.0/win-x64/node.exe` 放 `resources/dsh-runtime/node24/node.exe`

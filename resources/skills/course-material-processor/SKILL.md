@@ -33,7 +33,8 @@ metadata:
 4. **产 digest**：同一次任务里输出该 KP 的 digest（core≤500 字：核心结论/公式；takeaway≤500 字：一句话收获）。
 5. **机检**：`validate_course_blocks(lesson)` → 有错误就**回喂自己返工**（最多 2 轮；仍失败调 `set_kp_gen_failed` 并如实汇报）。
 6. **落盘**：`save_kp_lesson(lesson)`（先校验后落盘；写不进去不要绕过校验）。
-7. **汇报**：块数、字数、覆盖的页码区间、可视化块用了哪个。完成判定与解锁由应用做，**你不判定**。
+7. **digest 入链**：落盘成功后立即 `save_kp_digest(courseId, kpId, core, takeaway)`——后续 KP 的上下文连续全靠这条链，漏调等于挖坑。
+8. **汇报**：块数、字数、覆盖的页码区间、可视化块用了哪个。完成判定与解锁由应用做，**你不判定**。
 
 ## 铁律
 

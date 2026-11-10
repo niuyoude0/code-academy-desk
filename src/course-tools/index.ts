@@ -32,7 +32,8 @@ import {
   saveKpLesson,
   setKpGenFailed,
   getProgress,
-  getLearningContext
+  getLearningContext,
+  saveKpDigest
 } from '../main/services/learningPath'
 import { getKpSource, readMaterialPage, listMaterialFiles } from '../main/services/kpSource'
 import { getCourseStats } from '../main/services/courseStats'
@@ -234,6 +235,29 @@ function apply(ctx: {
         exec('save_kp_lesson', async () => {
           const { coursesRoot } = roots()
           return await saveKpLesson(coursesRoot, String(args.courseId), args.lesson)
+        })
+    })
+  )
+
+  reg(
+    defineTool({
+      name: 'cad_save_kp_digest',
+      description:
+        '把本次生成的 KP digest（core：核心结论/公式 ≤500 字；takeaway：一句话收获 ≤500 字）写入学习进度的摘要链。保存课件成功后必调——后续 KP 生成时靠这条链保持上下文连续。',
+      parameters: {
+        courseId: { ...ID, required: true },
+        kpId: { type: 'string', description: '知识点 id（=课件 lessonId）', required: true },
+        core: { type: 'string', description: '核心结论/公式，≤500 字', required: true },
+        takeaway: { type: 'string', description: '一句话收获，≤500 字', required: true }
+      },
+      output: textOut,
+      execute: (args: Record<string, unknown>) =>
+        exec('save_kp_digest', async () => {
+          const { coursesRoot } = roots()
+          return await saveKpDigest(coursesRoot, String(args.courseId), String(args.kpId), {
+            core: String(args.core ?? ''),
+            takeaway: String(args.takeaway ?? '')
+          })
         })
     })
   )

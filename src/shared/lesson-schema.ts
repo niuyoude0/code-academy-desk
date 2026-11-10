@@ -312,6 +312,7 @@ export type QuizBlock = z.infer<typeof QuizBlockSchema>
 export type CodeBlock = z.infer<typeof CodeBlockSchema>
 export type MathBlock = z.infer<typeof MathBlockSchema>
 export type InteractiveBlock = z.infer<typeof InteractiveBlockSchema>
+export type CodingBlock = z.infer<typeof CodingBlockSchema>
 
 export const LessonSchema = z.object({
   /** 课件格式版本 */

@@ -33,7 +33,14 @@ export const IpcChannel = {
   KpStart: 'kp:start',
   KpSkip: 'kp:skip',
   KpComplete: 'kp:complete',
+  KpDigestSave: 'kp:digest:save',
   LessonGet: 'lesson:get',
+  ExerciseGet: 'exercise:get',
+  RunnerRun: 'runner:run',
+  ReviewGet: 'review:get',
+  ReviewSetStatus: 'review:setStatus',
+  ReviewValidate: 'review:validate',
+  ReviewPageText: 'review:pageText',
   CourseAssetRead: 'course:asset:read',
   InteractiveCompile: 'interactive:compile',
   InteractiveBridge: 'interactive:bridge'
@@ -152,6 +159,96 @@ export interface KpCompleteInput {
   digest?: { core: string; takeaway: string }
 }
 
+/* ===== 校对域（P5.7 review.json 人审） ===== */
+
+import type { ReviewRecord, ReviewStatus, ReviewFile, ExerciseDocument } from './course-v2-schema'
+import type { CapacityWarning } from './lesson-quality'
+export type { ReviewRecord, ReviewStatus, ReviewFile, ExerciseDocument } from './course-v2-schema'
+export type { CapacityWarning } from './lesson-quality'
+
+/** book 块页码锚（页码抽查面板行）。 */
+export interface BookBlockAnchor {
+  blockId: string
+  blockType: string
+  pdfPage: number
+  bookPage: number | null
+  ocrFile?: string
+  /** quote 块摘录前 120 字（面板预览） */
+  excerpt?: string
+}
+
+/** 校对总览中的单课条目（损坏课件 doc=null 但 errors 有内容——校对页就是要看坏课件）。 */
+export interface LessonReviewItem {
+  lessonId: string
+  chapterId: string
+  chapterTitle: string
+  title: string
+  file: string
+  blockCount: number
+  bookBlocks: BookBlockAnchor[]
+  review: ReviewRecord | null
+  errors: { path: string; message: string }[]
+  warns: CapacityWarning[]
+  doc: unknown | null
+  words: number
+}
+
+/** 校对页总览（review:get）。 */
+export interface ReviewOverview {
+  courseId: string
+  title: string
+  /** 教材资料 id（页码抽查用；未关联为 null） */
+  materialId: string | null
+  reviews: ReviewRecord[]
+  lessons: LessonReviewItem[]
+  /** 学习路径上的 KP id 集（lessonId 命中 = KP 课件，显示 digest 定稿区） */
+  pathKpIds: string[]
+  /** progress.json 中已有 digest 的 KP 现值（校对页 digest 定稿区回显） */
+  digests: Record<string, { core: string; takeaway: string }>
+}
+
+/** 页码抽查的 OCR 页原文（review:pageText；未命中对应页为 null）。 */
+export interface OcrPageResult {
+  ocrFile: string
+  md: string
+  bookPage: number | null
+  pdfPage: number | null
+  neighbors: string[]
+}
+
+/* ===== Runner 域（P8 核心 + P5.8 编程题判定） ===== */
+
+export interface RunnerTestResult {
+  id: string
+  name: string
+  passed: boolean
+  expected: string
+  actual: string
+  stderr: string
+  timedOut: boolean
+  durationMs: number
+}
+
+/** 一次编程题运行（runner:run）。compile 仅 c 档位有；ok=false 时 results 为空。 */
+export interface RunResult {
+  language: string
+  compile?: { ok: boolean; output: string }
+  results: RunnerTestResult[]
+  passedAll: boolean
+  totalRunMs: number
+  entryPath: string
+}
+
+/** 运行编程题（files/tests 形状 = CodeFile[]/TestCase[]，服务端 zod/字段级校验）。 */
+export interface RunnerRunInput {
+  courseId: string
+  exerciseId: string
+  language: string
+  files: unknown
+  tests: unknown[]
+  timeoutMs?: number
+}
+
 /** 通过 contextBridge 暴露给渲染层的 API 面（window.api）。 */
 export interface DesktopApi {
   appInfo(): Promise<AppInfo>
@@ -188,10 +285,29 @@ export interface DesktopApi {
   kpStart(courseId: string, kpId: string): Promise<IpcResult<ProgressFile>>
   /** 跳过知识点（须已解锁；digest 链留空缺） */
   kpSkip(courseId: string, kpId: string): Promise<IpcResult<ProgressFile>>
-  /** 完成判定（quiz≥2/3 且编程未失败；forced=true 为应急门） */
+  /** 完成判定（quiz≥2/3 且编程未失败；forced=true 为应急门；digest 缺省时主进程从课件自动提取） */
   kpComplete(input: KpCompleteInput): Promise<IpcResult<ProgressFile>>
+  /** 直接写入/修订 KP digest（校对页人工定稿用） */
+  kpDigestSave(input: { courseId: string; kpId: string; core: string; takeaway: string }): Promise<IpcResult<ProgressFile>>
+  /** 校对总览：全量课件 + 校验结果 + 人审记录（损坏课件也带 errors 返回） */
+  reviewGet(courseId: string): Promise<IpcResult<ReviewOverview>>
+  /** 人审状态流转（draft→valid|approved|failed；failed 必须带 feedback） */
+  reviewSetStatus(input: {
+    courseId: string
+    lessonId: string
+    status: ReviewStatus
+    feedback?: string
+  }): Promise<IpcResult<ReviewFile>>
+  /** 单课重校验（error=铁律/schema；warn=容量硬标准） */
+  reviewValidate(courseId: string, lessonId: string): Promise<IpcResult<{ errors: { path: string; message: string }[]; warns: CapacityWarning[]; words: number }>>
+  /** 页码抽查：块 source → OCR 页原文（未命中返回 null） */
+  reviewPageText(courseId: string, ref: { ocrFile?: string; bookPage?: number | null }): Promise<IpcResult<OcrPageResult | null>>
   /** 读课件文档（学习视图渲染用） */
   lessonGet(courseId: string, chapterId: string, lessonId: string): Promise<IpcResult<unknown>>
+  /** 读练习文档（编程题题面/起步文件/测试） */
+  exerciseGet(courseId: string, exerciseId: string): Promise<IpcResult<ExerciseDocument>>
+  /** 本机运行编程题（P8 Runner：临时工作区/超时杀树/stdin-stdout 测试判定） */
+  runnerRun(input: RunnerRunInput): Promise<IpcResult<RunResult>>
   /** 读课程包 assets/ 内图片 → data URL（image 块渲染用） */
   courseAssetRead(courseId: string, relPath: string): Promise<IpcResult<{ dataUrl: string }>>
   /** 编译 interactive 组件 TSX → ESM（主进程 esbuild，白名单 import 重写为 cad-i:// chunk URL） */

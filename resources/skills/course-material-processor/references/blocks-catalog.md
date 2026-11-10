@@ -47,7 +47,7 @@
 
 | 块 | 用途 | 专有字段 | 常见错误 |
 |---|---|---|---|
-| diagram | 流程/层次/状态机 | `engine:'mermaid'` `mermaid`（mermaid 文本；**字段名不是 source**——source 保留给页码引用） | 语法错误——生成后必须 `validate_course_blocks`，mermaid 解析失败会回喂 |
+| diagram | 流程/层次/状态机 | `engine:'mermaid'` `mermaid`（mermaid 文本；**字段名不是 source**——source 保留给页码引用） | 语法错误——生成后必须 `validate_course_blocks`，mermaid 解析失败会回喂；**节点标签含 `[` 必须双引号包裹**（`A["a[i]"]`），裸写 `A[a[i]]` 直接 parse error |
 | chart | 数据图表 | `echartsOption`（纯 JSON） | option 里写函数/回调——**纯 JSON**，零回调约定 |
 | anim | 数据结构动态过程 | `template: array\|stack\|queue\|linkedList\|tree\|graph\|hashTable\|matrix` `title?` `frames[2..500]` | 自创模板名；帧数据结构与模板不匹配 |
 

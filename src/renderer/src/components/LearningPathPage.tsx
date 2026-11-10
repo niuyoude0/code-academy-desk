@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   BookOpen,
   Pencil,
-  RotateCcw
+  RotateCcw,
+  ClipboardCheck
 } from 'lucide-react'
 import type { CoursePathView } from '../../../shared/ipc'
 import type { PathEntry, ProgressFile } from '../../../shared/learning-path-schema'
@@ -57,11 +58,13 @@ export function LearningPathPage({
   courseId,
   title,
   onBack,
+  onOpenReview,
   onAskAgent
 }: {
   courseId: string
   title: string
   onBack: () => void
+  onOpenReview: () => void
   onAskAgent: (prompt: string) => void
 }): React.JSX.Element {
   const [view, setView] = useState<CoursePathView | null>(null)
@@ -71,6 +74,7 @@ export function LearningPathPage({
   const [lesson, setLesson] = useState<unknown>(null)
   const [lessonErr, setLessonErr] = useState<string | null>(null)
   const [answers, setAnswers] = useState<Record<string, QuizAnswerState>>({})
+  const [codingPassed, setCodingPassed] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -128,6 +132,7 @@ export function LearningPathPage({
       setLesson(null)
       setLessonErr(null)
       setAnswers({})
+      setCodingPassed(false)
       const res = await window.api.lessonGet(courseId, kp.chapterId, kp.id)
       if (res.ok) setLesson(res.data)
       else setLessonErr(res.error)
@@ -170,7 +175,9 @@ export function LearningPathPage({
   const correct = answered.filter((b) => answers[b.id]?.correct === true).length
   const quizBest = quizBlocks.length > 0 ? `${correct}/${quizBlocks.length}` : undefined
   const ratio = quizBlocks.length > 0 ? correct / quizBlocks.length : 0
-  const canComplete = !hasCoding && quizBlocks.length > 0 && answered.length === quizBlocks.length && ratio >= 2 / 3
+  // D6 完成判定：quiz≥2/3 且（无编程题 或 编程 Runner 判定通过）——P5.8 起编程题不再强制走应急门
+  const canComplete =
+    quizBlocks.length > 0 && answered.length === quizBlocks.length && ratio >= 2 / 3 && (!hasCoding || codingPassed)
 
   const doComplete = useCallback(
     async (forced: boolean): Promise<void> => {
@@ -179,6 +186,7 @@ export function LearningPathPage({
           courseId,
           kpId: String(selectedKp?.id ?? ''),
           ...(quizBest != null ? { quizBest } : {}),
+          ...(hasCoding && !forced ? { codingPassed: codingPassed } : {}),
           ...(forced ? { forced: true } : {})
         })
       )
@@ -186,9 +194,10 @@ export function LearningPathPage({
         setSelectedKpId(null)
         setLesson(null)
         setAnswers({})
+        setCodingPassed(false)
       }
     },
-    [run, courseId, selectedKp, quizBest]
+    [run, courseId, selectedKp, quizBest, hasCoding, codingPassed]
   )
 
   const stateBadge = (st: KpUiState): React.JSX.Element => {
@@ -226,6 +235,13 @@ export function LearningPathPage({
           <span className="text-[12px] text-tx2">学习路径</span>
         </div>
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onOpenReview}
+            className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] text-tx hover:bg-panel-hover"
+          >
+            <ClipboardCheck size={14} className="text-tx2" /> 课件校对
+          </button>
           <button
             type="button"
             onClick={() => void refresh()}
@@ -390,6 +406,8 @@ export function LearningPathPage({
                 setAnswers={setAnswers}
                 quizSummary={{ total: quizBlocks.length, correct, answered: answered.length }}
                 hasCoding={hasCoding}
+                codingPassed={codingPassed}
+                onCodingPassed={(): void => setCodingPassed(true)}
                 canComplete={canComplete}
                 ratio={ratio}
                 busy={busy}
@@ -415,6 +433,8 @@ function StudyView({
   setAnswers,
   quizSummary,
   hasCoding,
+  codingPassed,
+  onCodingPassed,
   canComplete,
   ratio,
   busy,
@@ -429,6 +449,8 @@ function StudyView({
   setAnswers: React.Dispatch<React.SetStateAction<Record<string, QuizAnswerState>>>
   quizSummary: { total: number; correct: number; answered: number }
   hasCoding: boolean
+  codingPassed: boolean
+  onCodingPassed: () => void
   canComplete: boolean
   ratio: number
   busy: boolean
@@ -460,7 +482,13 @@ function StudyView({
               }
             />
           ) : (
-            <BlockRenderer key={b.id} block={b} courseId={courseId} onAskAgent={onAskAgent} />
+            <BlockRenderer
+              key={b.id}
+              block={b}
+              courseId={courseId}
+              onAskAgent={onAskAgent}
+              onCodingPassed={b.type === 'coding' ? onCodingPassed : undefined}
+            />
           )
         )}
       </div>
@@ -472,7 +500,12 @@ function StudyView({
             <div className="text-[12.5px] text-tx2">
               判定 <span className="font-mono font-semibold text-tx">{quizSummary.correct}/{quizSummary.total}</span>
               （已答 {quizSummary.answered}/{quizSummary.total}）· 达标线 2/3
-              {hasCoding && <span className="ml-1 text-warn">· 本课件含编程题（P5.8 接 Runner 后可正常判定）</span>}
+              {hasCoding &&
+                (codingPassed ? (
+                  <span className="ml-1 text-ok">· 编程题已通过</span>
+                ) : (
+                  <span className="ml-1 text-warn">· 本课件含编程题：运行判定通过后可正常完成</span>
+                ))}
             </div>
             <div className="flex items-center gap-2">
               <button

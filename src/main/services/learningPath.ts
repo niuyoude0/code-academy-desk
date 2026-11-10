@@ -9,7 +9,7 @@ import {
   PROGRESS_FILE
 } from '../../shared/learning-path-schema'
 import type { PathFile, PathEntry, ProgressFile, ProgressKpEntry, KpLearningContext } from '../../shared/learning-path-schema'
-import { getManifestV2, saveLessonV2, CourseV2Error } from './coursePackageV2'
+import { getLessonV2, getManifestV2, saveLessonV2, CourseV2Error } from './coursePackageV2'
 
 /**
  * P5.3a 学习路径服务（知识点驱动，2026-11-10 用户六原则拍板）：
@@ -218,6 +218,82 @@ function parseRatio(quizBest: string | undefined): number | null {
   return got / total
 }
 
+/* ===== digest 链（P5.7：判定通过即定稿，链不再断） ===== */
+
+/**
+ * 从课件文档提取 digest（completeKp 的兜底提取；Agent 未调 cad_save_kp_digest 时保证链不断）。
+ * 规则：core = summary 块要点全文（≤500 字）；takeaway = 第一个要点卡背面（缺省正面）（≤500 字）。
+ * 无 summary 时 core 退化为要点卡正面拼接；两者皆无返回 null（保持链上空缺，不造假摘要）。
+ */
+export function extractDigestFromDoc(doc: unknown): { core: string; takeaway: string } | null {
+  const blocks = (doc as { blocks?: unknown } | null)?.blocks
+  if (!Array.isArray(blocks)) return null
+  const summaryPoints: string[] = []
+  const kpFronts: string[] = []
+  let takeaway = ''
+  for (const b of blocks) {
+    if (b == null || typeof b !== 'object') continue
+    const block = b as Record<string, unknown>
+    if (block.type === 'summary' && Array.isArray(block.points)) {
+      for (const p of block.points) {
+        if (typeof p === 'string' && p.trim().length > 0) summaryPoints.push(p)
+      }
+    } else if (block.type === 'keypoint') {
+      const front = typeof block.front === 'string' ? block.front : ''
+      const back = typeof block.back === 'string' ? block.back : ''
+      if (takeaway === '' && back.trim().length > 0) takeaway = back
+      if (front.trim().length > 0) kpFronts.push(front)
+    }
+  }
+  const coreSource = summaryPoints.length > 0 ? summaryPoints.join('\n') : kpFronts.join('\n')
+  const core = coreSource.trim().slice(0, 500)
+  if (core.length === 0) return null
+  if (takeaway.trim().length === 0) takeaway = summaryPoints[summaryPoints.length - 1] ?? core
+  return { core, takeaway: takeaway.trim().slice(0, 500) }
+}
+
+/**
+ * 直接写入/修订某 KP 的 digest（Agent cad_save_kp_digest 与校对页人工定稿共用）。
+ * 无学习条目时创建 learning 态条目（不影响解锁与当前位推导）；已有条目只补 digest 不动状态。
+ */
+export async function saveKpDigest(
+  coursesRoot: string,
+  courseId: string,
+  kpId: string,
+  digest: { core: string; takeaway: string }
+): Promise<ProgressFile> {
+  assertKpId(kpId)
+  const core = digest.core.trim()
+  const takeaway = digest.takeaway.trim()
+  if (core.length === 0 || takeaway.length === 0) {
+    throw new CourseV2Error('digest 的 core/takeaway 不能为空')
+  }
+  if (core.length > 500 || takeaway.length > 500) {
+    throw new CourseV2Error('digest 的 core/takeaway 超过 500 字上限')
+  }
+  const pathFile = await readPath(coursesRoot, courseId)
+  if (!pathFile.kps.some((k) => k.id === kpId)) throw new CourseV2Error(`知识点不在学习路径中: ${kpId}`)
+  const progress = await readProgress(coursesRoot, courseId)
+  const old = progress.kps.find((k) => k.kpId === kpId)
+  const entry: ProgressKpEntry = {
+    kpId,
+    ...(old?.state != null ? { state: old.state } : { state: 'learning' as const }),
+    ...(old?.forced != null ? { forced: old.forced } : {}),
+    ...(old?.quizBest != null ? { quizBest: old.quizBest } : {}),
+    ...(old?.codingPassed != null ? { codingPassed: old.codingPassed } : {}),
+    ...(old?.completedAt != null ? { completedAt: old.completedAt } : {}),
+    digest: { core, takeaway }
+  }
+  const others = progress.kps.filter((k) => k.kpId !== kpId)
+  const next: ProgressFile = {
+    ...progress,
+    currentKpId: deriveCurrentKp(pathFile, progress),
+    kps: [...others, entry]
+  }
+  await writeProgress(coursesRoot, courseId, next)
+  return next
+}
+
 /**
  * 完成知识点（判定门槛：quiz ≥ 2/3 且编程题未失败）。
  * - 达标 → completed；未达标但 forced=true → completed（记 forced，应急门）
@@ -245,6 +321,18 @@ export async function completeKp(
   }
 
   const old = progress.kps.find((k) => k.kpId === kpId)
+  // digest 定稿：显式传入 > 链上已有 > 课件自动提取（P5.4 残留修复：判定通过即入链，前序 KP 不再被当 gap）
+  let digest = result.digest ?? old?.digest
+  if (digest == null) {
+    const pathEntry = pathFile.kps.find((k) => k.id === kpId)
+    if (pathEntry != null) {
+      try {
+        digest = extractDigestFromDoc(await getLessonV2(coursesRoot, courseId, pathEntry.chapterId, kpId)) ?? undefined
+      } catch {
+        // 课件缺失/损坏不阻断完成判定，digest 链留待 cad_save_kp_digest 或校对页人工定稿
+      }
+    }
+  }
   const entry: ProgressKpEntry = {
     kpId,
     state: 'completed',
@@ -253,7 +341,7 @@ export async function completeKp(
     ...(result.codingPassed != null ? { codingPassed: result.codingPassed } : {}),
     completedAt: now(),
     // 回溯重学未带新 digest 时保留旧摘要（digest 链只增不改坏）
-    ...(result.digest != null ? { digest: result.digest } : old?.digest != null ? { digest: old.digest } : {})
+    ...(digest != null ? { digest } : {})
   }
   const others = progress.kps.filter((k) => k.kpId !== kpId)
   const next: ProgressFile = {

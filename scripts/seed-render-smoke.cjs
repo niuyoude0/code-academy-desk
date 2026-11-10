@@ -87,10 +87,14 @@ const manifest = {
   id,
   title: '渲染验收种子课程',
   language: 'mixed',
-  description: 'P5.5 BlockRenderer 实机验收用（本地脚本生成，可随时删除）',
+  description: 'P5.5/P5.7 实机验收用（本地脚本生成，可随时删除）',
   createdAt: now,
   updatedAt: now,
-  chapters: [ { id: 'ch01', title: '第一章', lessons: [ { lessonId: 'ch01-k01', title: '插入排序', file: 'chapters/ch01/ch01-k01.json' } ] } ]
+  sourceRef: { materialId: 'zz-material', factsheets: [], pageOffsets: [] },
+  chapters: [ { id: 'ch01', title: '第一章', lessons: [
+    { lessonId: 'ch01-k01', title: '插入排序', file: 'chapters/ch01/ch01-k01.json' },
+    { lessonId: 'ch01-k00-legacy', title: '遗留坏课（缺页码）', file: 'chapters/ch01/ch01-k00-legacy.json' }
+  ] } ]
 }
 
 const pathFile = {
@@ -110,6 +114,48 @@ fs.writeFileSync(path.join(dir, 'path.json'), JSON.stringify(pathFile, null, 2))
 fs.writeFileSync(path.join(dir, 'progress.json'), JSON.stringify(progressFile, null, 2))
 fs.writeFileSync(path.join(dir, 'review.json'), JSON.stringify({ reviews: [] }, null, 2))
 fs.writeFileSync(path.join(dir, 'chapters', 'ch01', 'ch01-k01.json'), JSON.stringify(lesson, null, 2))
+// P5.7 校对页验收：坏课样本（origin=book 缺 source → 铁律 error）直接写盘绕过校验
+fs.writeFileSync(path.join(dir, 'chapters', 'ch01', 'ch01-k00-legacy.json'), JSON.stringify({
+  schemaVersion: '2.0',
+  lessonId: 'ch01-k00-legacy',
+  title: '遗留坏课（缺页码）',
+  blocks: [
+    { id: 'x1', type: 'text', origin: 'book', md: '这一块声明来自教材却没有页码引用——校验器应报 b1.source 铁律错误。' }
+  ]
+}, null, 2))
+// P5.7 页码抽查验收：造教材资料 OCR 页（页首头 = kpSource/reviewView 扫描自证格式）
+const materialsRoot = path.join(process.env.APPDATA, 'code-academy-desk', 'materials')
+for (const [pdfPage, bookPage, body] of [
+  [94, 80, '3.2 插入排序。排序问题可以类比整理扑克牌：左手为已排序区，右手每次取一张插入合适位置。'],
+  [95, 81, '插入排序对小规模或近乎有序的数据非常高效。定义：稳定排序要求相等元素相对顺序不变。'],
+  [96, 82, '定理 3.1：插入排序结束后序列非降。证明采用循环不变式。T(n) = n(n-1)/2。']
+]) {
+  const pageDir = path.join(materialsRoot, 'zz-material', 'ocr', 'ch01')
+  fs.mkdirSync(pageDir, { recursive: true })
+  fs.writeFileSync(path.join(pageDir, `p0${pdfPage}.md`), `## PDF p.${pdfPage} | 书内页码 ${bookPage}\n\n${body}\n`, 'utf-8')
+}
+// P5.8 编程题验收：练习文件（python 插入排序 stdin/stdout 判定）
+fs.mkdirSync(path.join(dir, 'exercises'), { recursive: true })
+fs.writeFileSync(path.join(dir, 'exercises', 'ex-insertion-sort.json'), JSON.stringify({
+  id: 'ex-insertion-sort',
+  number: '3.2',
+  title: '实现插入排序',
+  statement: '读入整数 `n` 和 `n` 个整数，**用插入排序**将它们升序排列后逐行输出。\n\n`n` 满足 `1 ≤ n ≤ 1000`。',
+  source: { origin: 'book', bookPageRefs: [{ pdfPage: 99, bookPage: 86 }] },
+  knowledgePointIds: ['ch01-k01'],
+  starterFiles: [
+    { path: 'main.py', language: 'python', readOnly: false, content: 'n = int(input())\na = [int(x) for x in input().split()]\n\n# TODO: 用插入排序将 a 升序排列\n\nfor x in a:\n    print(x)\n' }
+  ],
+  tests: [
+    { id: 't1', name: '三个元素', input: '3\n3 1 2\n', expectedOutput: '1\n2\n3\n' },
+    { id: 't2', name: '已有序', input: '4\n1 2 3 4\n', expectedOutput: '1\n2\n3\n4\n' },
+    { id: 't3', name: '单元素', input: '1\n7\n', expectedOutput: '7\n' }
+  ],
+  referenceSolution: [
+    { path: 'solution.py', language: 'python', readOnly: true, content: 'n = int(input())\na = [int(x) for x in input().split()]\nfor i in range(1, n):\n    key = a[i]\n    j = i - 1\n    while j >= 0 and a[j] > key:\n        a[j + 1] = a[j]\n        j -= 1\n    a[j + 1] = key\nfor x in a:\n    print(x)\n' }
+  ]
+}, null, 2))
+
 // 1x1 红色像素 PNG（演示 assets 通路）
 fs.writeFileSync(path.join(dir, 'assets', 'demo.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'))
 

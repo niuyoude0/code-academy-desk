@@ -9,20 +9,25 @@ import { ChartView } from './ChartView'
 import { AnimView } from './AnimView'
 import { ImageView } from './ImageView'
 import { InteractiveBlockView } from './InteractiveBlockView'
+import { CodingBlockView } from './CodingBlockView'
 
 /**
  * P5.5 课件块渲染器：22 类块统一分派（A 层管线：react-markdown/KaTeX/shiki/mermaid/echarts/motion）。
  * quiz 交互卡由学习页直接走 QuizCard（需要答案状态），其余块全部经本组件。
  * P5.6：interactive 块接沙箱 iframe（受限 Renderer + 白名单桥）。
+ * P5.8：coding 块接 Runner 本地执行 + 测试判定（onCodingPassed 上抛编程通过）。
  */
 export function BlockRenderer({
   block,
   courseId,
-  onAskAgent
+  onAskAgent,
+  onCodingPassed
 }: {
   block: LessonBlock
   courseId: string
   onAskAgent?: (prompt: string) => void
+  /** 编程题判定通过（仅学习页传；校对页可试跑不上抛） */
+  onCodingPassed?: () => void
 }): React.JSX.Element {
   // interactive 块的 source 字段是 TSX 组件源码（非页码引用），排除后其余块的 source 才是 BookPageRef
   const src = block.type === 'interactive' ? null : (block.source ?? null)
@@ -298,13 +303,7 @@ export function BlockRenderer({
         </BlockShell>
       )
     case 'coding':
-      return (
-        <BlockShell label="coding" origin={block.origin} source={src}>
-          <div className="rounded-md border border-dashed border-line px-3 py-4 text-center text-[12.5px] text-tx2">
-            编程题 {block.exerciseId}：P5.8 接入统一 Runner 执行与判定
-          </div>
-        </BlockShell>
-      )
+      return <CodingBlockView block={block} courseId={courseId} onPassed={onCodingPassed} onAskAgent={onAskAgent} />
     default:
       // 未知块型兜底（前向兼容旧课程包）
       return (

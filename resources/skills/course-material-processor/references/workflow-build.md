@@ -50,11 +50,13 @@ set_kp_gen_failed { courseId, kpId, reason: "具体原因" }
 
 ## digest 交付
 
-每次成功生成 KP 课件，在最终回复里给出 digest JSON（也会被应用在完成判定通过后写入 progress.json）：
+每次成功生成 KP 课件，**落盘后立即调 `save_kp_digest(courseId, kpId, core, takeaway)`** 把摘要写入 progress.json 摘要链——不要只放在汇报文本里（应用读取的是链上的结构化 digest，不是你的回复）：
 
 ```json
-{ "kpId": "ch03-k02", "digest": { "core": "...", "takeaway": "..." } }
+{ "kpId": "ch03-k02", "core": "核心结论/公式 ≤500 字", "takeaway": "一句话收获 ≤500 字" }
 ```
+
+兜底：若你漏调，应用在用户完成判定通过时会从课件 summary/keypoint 块自动提取一份写入——但自动提取的措辞不如你提炼的精准，链上空缺期间生成的 KP 上下文质量会下降。
 
 ## 重新生成（用户要求重做某 KP）
 
@@ -74,6 +76,6 @@ set_kp_gen_failed { courseId, kpId, reason: "具体原因" }
 - 18 块（concept1/definition2/theorem1/example2/quiz3/diagram1/summary1/...），正文约 2760 字
 - 页码覆盖：书内 p.79–p.82（PDF p.93–p.96），3 条事实已抽查核对
 - 可视化：mermaid 状态机（Q̄ 反馈回路）；未用 interactive（anim 模板不适用于本主题）
-- digest：core/takeaway 已产出
+- digest：core/takeaway 已 save_kp_digest 入链
 - 待应用侧：完成判定 → 解锁 ch03-k03《寄存器》
 ```
