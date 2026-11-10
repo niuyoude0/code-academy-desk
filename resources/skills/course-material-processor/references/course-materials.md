@@ -28,13 +28,13 @@
 | 页偏移 | `pageOffset`（数值）或 `pageOffsets` / `page_offset_table`（分区：`{section, offset}[]`） |
 | 章节映射 | `chapters`（`{chapter, title, factsheet, bookPages?}[]`）或 `chapterMap` |
 
-缺字段不是错误：把缺失项列进校对清单，让用户补。
+缺字段不是错误：把缺失项列进最终汇报清单，让用户补。
 
 ## [OCR 冲突] 处理
 
 同一数字在 OCR 里前后矛盾时，factsheet 会同时列出两处页码并标 `[OCR 冲突]`。
 课程构建时：**不要选边**，在课程草稿对应内容的 `source.note` 写「OCR 冲突：p.X 写 A，p.Y 写 B，需人工回查」，
-并把该知识点标记为待校对。
+并在汇报里列出该知识点待补。
 
 ## 质检红线（来自 qa-handoff.md）
 

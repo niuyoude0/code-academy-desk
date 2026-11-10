@@ -11,7 +11,7 @@ function loadMermaid(): Promise<MermaidApi> {
     m.default.initialize({
       startOnLoad: false,
       securityLevel: 'strict',
-      theme: 'dark',
+      theme: 'neutral',
       fontFamily: '"Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif'
     })
     return m.default

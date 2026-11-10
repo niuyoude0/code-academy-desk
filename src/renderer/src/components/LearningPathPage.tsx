@@ -12,7 +12,7 @@ import {
   BookOpen,
   Pencil,
   RotateCcw,
-  ClipboardCheck
+  RefreshCcwDot
 } from 'lucide-react'
 import type { CoursePathView } from '../../../shared/ipc'
 import type { PathEntry, ProgressFile } from '../../../shared/learning-path-schema'
@@ -58,13 +58,11 @@ export function LearningPathPage({
   courseId,
   title,
   onBack,
-  onOpenReview,
   onAskAgent
 }: {
   courseId: string
   title: string
   onBack: () => void
-  onOpenReview: () => void
   onAskAgent: (prompt: string) => void
 }): React.JSX.Element {
   const [view, setView] = useState<CoursePathView | null>(null)
@@ -237,10 +235,12 @@ export function LearningPathPage({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={onOpenReview}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] text-tx hover:bg-panel-hover"
+            disabled={selectedKpId == null}
+            title={selectedKpId == null ? '先在左侧选择一个知识点' : '按技能要求让 AI 助教重新生成当前知识点课件'}
+            onClick={() => onAskAgent(buildGenerationPrompt(courseId, selectedKpId ?? ''))}
+            className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] text-tx hover:bg-panel-hover disabled:opacity-40"
           >
-            <ClipboardCheck size={14} className="text-tx2" /> 课件校对
+            <RefreshCcwDot size={14} className="text-tx2" /> 重新生成课件
           </button>
           <button
             type="button"
@@ -260,12 +260,12 @@ export function LearningPathPage({
       </header>
 
       {loadErr != null && (
-        <div className="mx-4 mt-3 rounded-md border border-line bg-[#3a2426] px-3 py-2 text-[12.5px] text-bad">
+        <div className="mx-4 mt-3 rounded-md bg-bad/10 px-3 py-2 text-[12.5px] text-bad">
           {loadErr}
         </div>
       )}
       {actionErr != null && (
-        <div className="mx-4 mt-3 rounded-md border border-line bg-[#3a2426] px-3 py-2 text-[12.5px] text-bad">
+        <div className="mx-4 mt-3 rounded-md bg-bad/10 px-3 py-2 text-[12.5px] text-bad">
           {actionErr}
         </div>
       )}
@@ -289,8 +289,8 @@ export function LearningPathPage({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1">
-          {/* 左列：KP 列表 */}
-          <div className="flex w-[340px] shrink-0 flex-col overflow-y-auto border-r border-line bg-panel">
+          {/* 左列：KP 列表（IDEA 树式扁平行，无行分隔线） */}
+          <div className="flex w-[300px] shrink-0 flex-col overflow-y-auto border-r border-line bg-panel py-2">
             {kps.map((kp, i) => {
               const st = stateOf(kp)
               const isUnlocked = unlocked(kp.id)
@@ -299,12 +299,12 @@ export function LearningPathPage({
               return (
                 <div
                   key={kp.id}
-                  className={`flex flex-col gap-1.5 border-b border-line px-3.5 py-3 ${selected ? 'bg-panel-hover' : ''}`}
+                  className={`mx-2 flex flex-col gap-1.5 rounded-md px-2.5 py-2.5 ${selected ? 'bg-acc/10' : 'hover:bg-panel-hover'}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[10.5px] text-tx2">{String(i + 1).padStart(2, '0')}</span>
+                        <span className="font-mono text-[10.5px] text-tx2/70">{String(i + 1).padStart(2, '0')}</span>
                         <span className="truncate text-[13px] font-medium text-tx">{kp.title}</span>
                       </div>
                       <div className="mt-0.5 flex items-center gap-2">
@@ -328,7 +328,7 @@ export function LearningPathPage({
                       <button
                         type="button"
                         onClick={() => void loadLesson(kp)}
-                        className="flex h-7 items-center gap-1.5 rounded bg-acc px-2 text-[12px] font-medium text-white hover:opacity-90"
+                        className="flex h-7 items-center gap-1.5 rounded bg-acc px-2 text-[12px] font-medium text-white hover:bg-acc-hover"
                       >
                         <Play size={12} /> {shown === 'learning' ? '继续学习' : '开始学习'}
                       </button>
@@ -368,10 +368,10 @@ export function LearningPathPage({
             })}
           </div>
 
-          {/* 右侧：学习视图 */}
-          <div className="min-w-0 flex-1 overflow-y-auto">
+          {/* 右侧：学习视图（豆包式居中阅读列 + 压平的完成判定门） */}
+          <div className="flex min-h-0 flex-1 flex-col">
             {selectedKp == null || doc == null ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
                 {lessonErr != null ? (
                   <>
                     <AlertTriangle size={28} className="text-warn" />
@@ -459,85 +459,88 @@ function StudyView({
   courseId: string
 }): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-3 px-5 py-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-[16px] font-semibold text-tx">{kp.title}</h1>
-        <span className="font-mono text-[11px] text-tx2">{kp.id}</span>
-      </div>
-      {progress?.state === 'completed' && (
-        <div className="rounded-md border border-ok/40 bg-ok/10 px-3 py-2 text-[12.5px] text-ok">
-          已完成{progress.forced ? '（应急通过）' : ''} · 最近判定 {progress.quizBest ?? '—'} —— 当前是回溯回顾
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* 阅读列（豆包式：居中 max-w、白底文档流、块间距放大） */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[820px] px-14 py-10">
+          <div className="flex items-baseline justify-between gap-3">
+            <h1 className="text-[22px] font-bold tracking-tight text-tx">{kp.title}</h1>
+            <span className="shrink-0 font-mono text-[11px] text-tx2/50">{kp.id}</span>
+          </div>
+          {progress?.state === 'completed' && (
+            <div className="mt-4 rounded-md bg-ok/10 px-3 py-2 text-[12.5px] text-ok">
+              已完成{progress.forced ? '（应急通过）' : ''} · 最近判定 {progress.quizBest ?? '—'} —— 当前是回溯回顾
+            </div>
+          )}
+          <div className="mt-8 flex flex-col gap-7">
+            {blocks.map((b) =>
+              b.type === 'quiz' ? (
+                <QuizCard
+                  key={b.id}
+                  block={b}
+                  state={answers[b.id]}
+                  onChange={(next): void => setAnswers((prev) => ({ ...prev, [b.id]: next }))}
+                  onJudge={(correct): void =>
+                    setAnswers((prev) => ({ ...prev, [b.id]: { ...(prev[b.id] as QuizAnswerState), judged: true, correct } }))
+                  }
+                />
+              ) : (
+                <BlockRenderer
+                  key={b.id}
+                  block={b}
+                  courseId={courseId}
+                  onAskAgent={onAskAgent}
+                  onCodingPassed={b.type === 'coding' ? onCodingPassed : undefined}
+                />
+              )
+            )}
+          </div>
         </div>
-      )}
-      <div className="flex flex-col gap-3">
-        {blocks.map((b) =>
-          b.type === 'quiz' ? (
-            <QuizCard
-              key={b.id}
-              block={b}
-              state={answers[b.id]}
-              onChange={(next): void => setAnswers((prev) => ({ ...prev, [b.id]: next }))}
-              onJudge={(correct): void =>
-                setAnswers((prev) => ({ ...prev, [b.id]: { ...(prev[b.id] as QuizAnswerState), judged: true, correct } }))
-              }
-            />
-          ) : (
-            <BlockRenderer
-              key={b.id}
-              block={b}
-              courseId={courseId}
-              onAskAgent={onAskAgent}
-              onCodingPassed={b.type === 'coding' ? onCodingPassed : undefined}
-            />
-          )
-        )}
       </div>
 
-      {/* 完成判定门（D6） */}
+      {/* 完成判定门（D6）：压平为底栏（分隔线 + 白底，无卡片无投影） */}
       {progress?.state !== 'completed' && progress?.state !== 'skipped' && quizSummary.total > 0 && (
-        <div className="sticky bottom-0 mt-2 rounded-lg border border-line bg-panel p-4 shadow-lg">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-[12.5px] text-tx2">
-              判定 <span className="font-mono font-semibold text-tx">{quizSummary.correct}/{quizSummary.total}</span>
-              （已答 {quizSummary.answered}/{quizSummary.total}）· 达标线 2/3
-              {hasCoding &&
-                (codingPassed ? (
-                  <span className="ml-1 text-ok">· 编程题已通过</span>
-                ) : (
-                  <span className="ml-1 text-warn">· 本课件含编程题：运行判定通过后可正常完成</span>
-                ))}
-            </div>
-            <div className="flex items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line bg-bg px-12 py-2.5">
+          <div className="text-[12.5px] text-tx2">
+            判定 <span className="font-mono font-semibold text-tx">{quizSummary.correct}/{quizSummary.total}</span>
+            （已答 {quizSummary.answered}/{quizSummary.total}）· 达标线 2/3
+            {hasCoding &&
+              (codingPassed ? (
+                <span className="ml-1 text-ok">· 编程题已通过</span>
+              ) : (
+                <span className="ml-1 text-warn">· 本课件含编程题：运行判定通过后可正常完成</span>
+              ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={busy || !canComplete}
+              onClick={() => void onComplete(false)}
+              className="flex h-8 items-center gap-1.5 rounded-md bg-acc px-3.5 text-[13px] font-medium text-white hover:bg-acc-hover disabled:opacity-40"
+            >
+              <CircleCheck size={14} /> 完成判定
+            </button>
+            {(hasCoding || ratio < 2 / 3) && (
               <button
                 type="button"
-                disabled={busy || !canComplete}
-                onClick={() => void onComplete(false)}
-                className="flex h-8 items-center gap-1.5 rounded-md bg-acc px-3.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-40"
+                disabled={busy || quizSummary.answered < quizSummary.total}
+                onClick={() => void onComplete(true)}
+                className="flex h-8 items-center gap-1.5 rounded-md border border-warn/60 px-3 text-[13px] text-warn hover:bg-panel-hover disabled:opacity-40"
               >
-                <CircleCheck size={14} /> 完成判定
+                <AlertTriangle size={13} /> 应急完成
               </button>
-              {(hasCoding || ratio < 2 / 3) && (
-                <button
-                  type="button"
-                  disabled={busy || quizSummary.answered < quizSummary.total}
-                  onClick={() => void onComplete(true)}
-                  className="flex h-8 items-center gap-1.5 rounded-md border border-warn/60 px-3 text-[13px] text-warn hover:bg-panel-hover disabled:opacity-40"
-                >
-                  <AlertTriangle size={13} /> 应急完成
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() =>
-                  onAskAgent(
-                    `我在课程「${courseId}」的知识点「${kp.id}（${kp.title}）」判定未达标。请按技能要求帮我重讲这个知识点的薄弱处（依据 quiz 易错点），并视需要重新生成更好的课件。`
-                  )
-                }
-                className="flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-[13px] text-tx2 hover:bg-panel-hover"
-              >
-                <Bot size={13} /> 问助教
-              </button>
-            </div>
+            )}
+            <button
+              type="button"
+              onClick={() =>
+                onAskAgent(
+                  `我在课程「${courseId}」的知识点「${kp.id}（${kp.title}）」判定未达标。请按技能要求帮我重讲这个知识点的薄弱处（依据 quiz 易错点），并视需要重新生成更好的课件。`
+                )
+              }
+              className="flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] text-tx2 hover:bg-panel-hover"
+            >
+              <Bot size={13} /> 问助教
+            </button>
           </div>
         </div>
       )}

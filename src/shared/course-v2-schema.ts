@@ -59,32 +59,9 @@ export const CourseManifestV2Schema = z.object({
 })
 export type CourseManifestV2 = z.infer<typeof CourseManifestV2Schema>
 
-export const REVIEW_STATUSES = ['draft', 'valid', 'approved', 'failed'] as const
-export type ReviewStatus = (typeof REVIEW_STATUSES)[number]
-
-export const ReviewRecordSchema = z.object({
-  lessonId: IdField,
-  status: z.enum(REVIEW_STATUSES),
-  /** 最近一次校验错误（failed/valid 时展示） */
-  errors: z
-    .array(z.object({ path: z.string().max(300), message: z.string().max(1000) }))
-    .max(100)
-    .optional(),
-  /** 重新生成时的人工反馈 */
-  feedback: z.string().max(8000).optional(),
-  updatedAt: z.string().min(4).max(40)
-})
-export type ReviewRecord = z.infer<typeof ReviewRecordSchema>
-
-export const ReviewFileSchema = z.object({
-  reviews: z.array(ReviewRecordSchema).max(2000).default([])
-})
-export type ReviewFile = z.infer<typeof ReviewFileSchema>
-
 /** exercises/ex-*.json 的内容 = v1 Exercise 结构原样复用（题面/起步文件/测试/参考解/来源）。 */
 export const ExerciseDocumentSchema = Exercise
 export type ExerciseDocument = Exercise
 
 /** v2 课程 zip 的顶层清单文件名（与 v1 的 course-package.json 区分）。 */
 export const MANIFEST_V2_FILE = 'manifest.json'
-export const REVIEW_FILE = 'review.json'

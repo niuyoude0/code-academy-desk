@@ -35,14 +35,14 @@
 | 权限档位（沙箱三档 + 审批联动） | ✅已完成（P9.7） |
 | MCP 服务器管理 UI | ✅已完成（P9.8） |
 | 课件 Schema v2（22 类 Block）+ 校验器 + 容量机检 | ✅已完成（P5.1/P5.2.5） |
-| 课程包 v2 读写（manifest/review/局部重生成/zip + path/progress 随包迁移） | ✅已完成（P5.2/P5.3） |
+| 课程包 v2 读写（manifest/局部重生成/zip + path/progress 随包迁移；~~review~~ 2026-11-11 随校对功能移除） | ✅已完成（P5.2/P5.3） |
 | **知识点驱动学习路径**（path.json/progress.json/线性解锁/回溯不拨指针/可跳过/digest 链） | ✅已完成（P5.3a） |
 | **学习路径页**（七态 KP 表/按需生成触发/学习视图/完成判定门 quiz≥2/3+forced 应急） | ✅已完成（P5.4） |
 | **BlockRenderer**（22 类块全量真渲染：react-markdown/KaTeX/shiki/mermaid/echarts/anim 帧模板/image 资源通道） | ✅已完成（P5.5，实机目检全项通过） |
 | **interactive 沙箱执行**（esbuild 编译 + cad-i:// 沙箱 iframe + 白名单桥 12 chunk） | ✅已完成（P5.6，实机验收：滑杆联动/fs 桥读进度/错误卡回喂） |
 | ECharts 可视化 | ✅已完成（P5.5：A 层 ChartView + interactive EChart 桥） |
 | 算法动画/数据结构交互演示 | ✅已完成（P5.5：anim 8 模板帧解释器 + motion） |
-| **课件校对界面**（BlockRenderer 所见即所得预览 + validate 面板 + 页码抽查 OCR 对照 + 人审状态流转 + digest 人工定稿） | ✅已完成（P5.7，实机验收全项通过） |
+| ~~课件校对界面~~ → **一键重新生成课件** | 🔴 2026-11-11 用户拍板整体移除（P5.7 代码已清）；重新生成入口在学习页 header |
 | Source Manager：PDF/EPUB 静默预处理 | 📐已设计未实现（D3 决策已定） |
 | 三栏学习工作台 | 📐已设计未实现（P6） |
 | 文件工作区（文件树+CodeMirror 6+git 快照） | 未开始（P7） |
@@ -80,7 +80,7 @@
   → Course Builder（DSH Agent + 技能 v2：主循环 A 建学习路径骨架 / B 单 KP 按需生成课件；
      course-tools 20 工具；validate_course_blocks 实时自检 + 容量机检）
   → 课程包 v2 持久化（coursePackageV2.ts + path.json/progress.json）
-  → 【✅ P5.7 校对界面：ReviewPage 人审（validate/页码抽查/状态流转/digest 定稿）】
+  → 【🔴 P5.7 校对界面 2026-11-11 已整体移除——质量责任前移到机检+生成侧自检（skill v2.1），入口改「一键重新生成课件」】
   → Course Renderer（✅ P5.5/P5.6：BlockRenderer 22 类块全量渲染 + interactive 沙箱）
   → 学习路径页完成判定（quiz≥2/3 解锁下一 KP）
 ```
@@ -93,8 +93,8 @@
 |---|---|---|
 | 主进程入口 | `src/main/index.ts` | 窗口/smoke/各域 IPC 注册（Course/Skill/Material/Path/Interactive/Agent/Mcp）/cad-i 协议注册（ready 前）/before-quit 关停 DSH |
 | 学习路径域 IPC | `src/main/pathIpc.ts` | path:get / kp:start|skip|complete / lesson:get / course:asset:read（IpcResult 信封） |
-| 校对域 IPC | `src/main/reviewIpc.ts` | review:get（全量课件+校验+人审总览）/ review:setStatus（failed 自动带现跑错误清单）/ review:validate / review:pageText（OCR 对照）/ kp:digest:save（人工定稿） |
-| 校对视图服务 | `src/main/services/reviewView.ts` | getReviewOverview（损坏课件折进 errors 不抛+book 块页码锚+容量 warn）/ validateLessonForReview / getOcrPageForCourse（ocrFile 直读优先，缺省按书内页码扫 ocr 页首头部自证） |
+| ~~校对域 IPC~~ | ~~`src/main/reviewIpc.ts`~~ | 🔴 已删除（2026-11-11 校对功能移除） |
+| ~~校对视图服务~~ | ~~`src/main/services/reviewView.ts`~~ | 🔴 已删除（2026-11-11） |
 | Runner 服务 | `src/main/services/runner.ts` | runExercise（python/c/javascript 档位；临时工作区；超时杀树；stdin/stdout 归一判定）/ normalizeRunnerLanguage / normalizeOutput / parseFiles；`runnerIpc.ts` 注册 exercise:get + runner:run |
 | interactive 域 | `src/main/interactiveIpc.ts` | interactive:compile / interactive:bridge / **cad-i:// 协议**（serve 沙箱 bootstrap+chunks；registerSchemesAsPrivileged 须在 ready 前顶层调用） |
 | DSH 运行时 | `src/main/services/dshRuntime.ts` | spawn node24+dsh（profile `cad`）、ensureProfile（幂等 junction/托管 patch）、JSON-RPC、approval→原生对话框、stop=杀进程懒重启；spawn env 注入 CAD_COURSES_ROOT/CAD_MATERIALS_ROOT |
@@ -108,14 +108,14 @@
 | course-tools 插件单源 | `src/course-tools/index.ts` → `npm run build:plugin`（esbuild 176 模块 1.1MB） | 20 工具直接 import 应用源码；`@deepseek-ai/dsh-tools` external 经 profile junction 解析 |
 | 技能 v2 | `resources/skills/course-material-processor/` | SKILL.md（主循环 A/B）+ references/{factsheet-guide, blocks-catalog, quality-standard, interactive-bridge, workflow-build}.md + examples/lesson-example.json |
 | **块渲染器（渲染层）** | `src/renderer/src/components/blocks/` | BlockRenderer（22 类分派）/Md（GFM+KaTeX+shiki）/Katex/CodeView/MermaidView/ChartView（cad-dark 主题）/AnimView（8 模板帧解释器）/ImageView/InteractiveBlockView（沙箱宿主）/QuizCard/BlockShell/highlighter |
-| 学习路径页 | `src/renderer/src/components/LearningPathPage.tsx` | 七态 KP 表/生成提示词管道/学习视图/完成判定门；header「课件校对」入口 |
-| 课件校对页 | `src/renderer/src/components/ReviewPage.tsx` | 左列章节分组课件表（人审+校验双徽标）/右侧校对视图：BlockRenderer 全量真渲染预览（interactive 同沙箱=所见即所得，quiz 走 QuizCard 可试答）+ validate 面板（error 红/warn 黄+重校验）+ digest 定稿编辑器（KP 课件）+ 页码抽查（chips+块角标→OCR 对照抽屉，±1 相邻页回查）；有错误课禁批准；App.tsx 四视图路由（home/course/review/agent） |
+| 学习路径页 | `src/renderer/src/components/LearningPathPage.tsx` | 七态 KP 表/生成提示词管道/**豆包式居中阅读列**/完成判定门（压平底栏）；header「重新生成课件」入口（2026-11-11） |
+| ~~课件校对页~~ | ~~`src/renderer/src/components/ReviewPage.tsx`~~ | 🔴 已删除；App.tsx 三视图路由（home/course/agent） |
 | vendor | `resources/dsh-runtime/` | node24 + 全量 DSH + `node_modules/@cad/`（业务插件构建产物）；**git 忽略 node_modules/node24/spike-home**，重装步骤见 §12 |
 | 桥 chunk 产物 | `resources/interactive-bridge/`（git 忽略，`npm run build:bridge` 再生成） | bootstrap.html（沙箱文档）/bridge.css/chunks/*.js |
 
 ### IPC 通道（`src/shared/ipc.ts`，IpcResult<T> 信封）
 
-`app:info/ping`；`course:import/list/get/remove/export`（v1）+ `course:asset:read`（P5.5 image 块）；`skill:*`；`material:*`；`agent:chat/abort/resume/settings:*/event`；`mcp:*`；`path:get`、`kp:start|skip|complete`、`lesson:get`（P5.4）；`kp:digest:save`、`review:get/setStatus/validate/pageText`（P5.7）；`interactive:compile`、`interactive:bridge`（P5.6）。
+`app:info/ping`；`course:import/list/get/remove/export`（v1）+ `course:asset:read`（P5.5 image 块）；`skill:*`；`material:*`；`agent:chat/abort/resume/settings:*/event`；`mcp:*`；`path:get`、`kp:start|skip|complete`、`lesson:get`（P5.4）；~~`kp:digest:save`、`review:*`~~（P5.7，2026-11-11 移除）；`interactive:compile`、`interactive:bridge`（P5.6）。
 
 ## 5. 核心数据模型
 
@@ -129,7 +129,7 @@ text/concept/definition/theorem/math/callout/quote（页码铁律主载体）/ke
 
 ```
 coursesRoot/<courseId>/
-├── manifest.json / chapters/ / exercises/ / assets/ / review.json   （P5.2）
+├── manifest.json / chapters/ / exercises/ / assets/   （P5.2；~~review.json~~ 已废弃，旧目录残留为惰性文件）
 ├── path.json      # PathFile：kps[{id=lessonId, chapterId, title, bookPage?, interactivity?, genStatus:pending|ready|failed, lessonFile?, genError?}]
 └── progress.json  # ProgressFile：currentKpId? + kps[{kpId, state:learning|completed|skipped, forced?, quizBest?, codingPassed?, digest{core,takeaway}?}]
 ```
@@ -158,8 +158,8 @@ JSONL 落 `$DSH_HOME/sessions/`；渲染层 localStorage 持 sessionId，重启�
 |---|---|---|
 | `dshRuntime.ts` | `resolveDshPaths`/`ensureProfile`/`createDshRuntime`/`extractJsonFrames`/`mapSessionEvent` | ✅ |
 | `learningPath.ts` | `initPath`/`replacePath`/`getPath`/`saveKpLesson`/`setKpGenFailed`/`startKp`/`completeKp`（digest 自动提取兜底）/`skipKp`/`getLearningContext`/`isKpUnlocked`/`deriveCurrentKp`/`getProgress`/`saveKpDigest`/`extractDigestFromDoc` | ✅ |
-| `reviewView.ts` | `getReviewOverview`（损坏课件折进 errors）/`validateLessonForReview`/`getOcrPageForCourse`（ocrFile 直读/bookPage 扫描自证/邻页收集） | ✅ |
-| `reviewIpc.ts` | `registerReviewIpc`（review:get/setStatus/validate/pageText + kp:digest:save；failed 自动带现跑错误清单） | ✅ |
+| ~~`reviewView.ts`~~ | 校对视图服务 | 🔴 已删除（2026-11-11） |
+| ~~`reviewIpc.ts`~~ | 校对域 IPC | 🔴 已删除（2026-11-11） |
 | `interactiveCompile.ts` | `compileInteractiveComponent`/`scanImportSpecifiers`/`AI_IMPORT_MAP`/`AI_NAMED_EXPORTS`/`InteractiveCompileError`/`clearCompileCache` | ✅ |
 | `interactiveBridge.ts` | `readCourseFileText`/`readCourseAssetDataUrl`/`getCourseProgress`/`getCourseManifest`/`InteractiveBridgeError` | ✅ |
 | `interactiveIpc.ts` | `registerInteractiveProtocolScheme`（ready 前）/`registerInteractiveIpc`（协议 handler + 双通道） | ✅ |
@@ -169,7 +169,7 @@ JSONL 落 `$DSH_HOME/sessions/`；渲染层 localStorage 持 sessionId，重启�
 | `lesson-schema.ts` | 22 *BlockSchema + `BRIDGE_IMPORTS` + 单块类型导出（AnimBlock/QuizBlock/InteractiveBlock…） | ✅ |
 | `src/course-tools/index.ts` | 21 工具（P5.7 加 `cad_save_kp_digest`；build:plugin → vendor @cad/course-tools/lib/index.js） | ✅ |
 | 渲染层 blocks/ | 12 个组件（见 §4） | ✅ |
-| 渲染层 ReviewPage.tsx | 校对页（预览+validate+页码抽查+digest 定稿+状态流转） | ✅ |
+| ~~渲染层 ReviewPage.tsx~~ | 校对页 | 🔴 已删除（2026-11-11） |
 | `scripts/build-bridge-libs.mjs` | 12 chunk 预打包（react 入口须含 forwardRef/Component/createRoot；three+fiber+drei 同 chunk） | ✅ |
 | `scripts/seed-render-smoke.cjs` | 实机验收种子课程生成器（零 AI 消耗；含全部 22 类块样例） | ✅ |
 | `resources/dsh-runtime/spike-home/` | P5.0 spike 残留 | 可整体删除（已 git 忽略） |
@@ -235,7 +235,7 @@ JSONL 落 `$DSH_HOME/sessions/`；渲染层 localStorage 持 sessionId，重启�
 | 11 | exe 未签名；无自动更新 | 后续处理 |
 | 12 | better-sqlite3 编不过（无 VS Build Tools） | 见 §9-4 |
 | 13 | **esbuild 在解析层丢弃未使用 import**（treeShaking:false 拦不住） | interactive 白名单审查必须在源码文本上做（已实现，见 §5） |
-| 14 | Electron 45 `Privileges` 无 `isolatable`——自定义协议无法站点隔离 | interactive 沙箱为进程内 opaque origin；挂死防护靠心跳+重载（真死锁会冻结宿主，靠校对页人审兜底） |
+| 14 | Electron 45 `Privileges` 无 `isolatable`——自定义协议无法站点隔离 | interactive 沙箱为进程内 opaque origin；挂死防护靠心跳+重载 |
 | 15 | mermaid 节点标签含 `[` 必须双引号包裹（`A["a[i]"]`） | 已写进技能文档；渲染失败会红卡回喂原文 |
 | 16 | electron-vite **主进程改动不热更**（pid 不变），必须重启 dev；渲染层 HMR 正常 | 调试主进程时注意 |
 | 17 | App 三视图常驻挂载——返回再进课程不会重读课件，须点「开始学习」走 loadLesson | 已知行为 |
@@ -270,7 +270,7 @@ JSONL 落 `$DSH_HOME/sessions/`；渲染层 localStorage 持 sessionId，重启�
 ## 12. 新会话接手指南
 
 1. **先读**：本文件 → memory `C:\Users\35597\.zcode\cli\memories\projects\draft-3be231bf-37fe-41ce-9d7b-c87ef1852bc9-33ee712c3221b000\memory\code-academy-desk-project.md`（最全进度）与 `key-verified-facts-agent-stack.md` → `README.md`（路线图）。
-2. **代码入口**：主进程 `src/main/index.ts`；学习路径 `src/main/services/learningPath.ts` + `pathIpc.ts`；校对 `src/main/services/reviewView.ts` + `reviewIpc.ts`；interactive 管线 `src/main/services/interactiveCompile.ts` + `interactiveIpc.ts`；课件契约 `src/shared/lesson-schema.ts`；渲染层 `src/renderer/src/App.tsx` + `components/LearningPathPage.tsx` + `components/ReviewPage.tsx` + `components/blocks/`。
+2. **代码入口**：主进程 `src/main/index.ts`；学习路径 `src/main/services/learningPath.ts` + `pathIpc.ts`；校对（已移除）；interactive 管线 `src/main/services/interactiveCompile.ts` + `interactiveIpc.ts`；课件契约 `src/shared/lesson-schema.ts`；渲染层 `src/renderer/src/App.tsx` + `components/LearningPathPage.tsx` + `components/ReviewPage.tsx` + `components/blocks/`。
 3. **命令**：`npm run dev` / `npm run typecheck` / `npx vitest run`（基线 126）/ `npm run smoke` / `npm run dist`（exe）/ `npm run build:plugin`（course-tools）/ `npm run build:bridge`（interactive 桥 chunk）。
 4. **git**：仓库已建立；`resources/dsh-runtime/{node_modules,node24,spike-home}` 与 `resources/interactive-bridge/` 按设计**不进仓库**。**全新 clone 后必须执行三步**再 dev：
    - `cd resources/dsh-runtime && npm install --ignore-scripts --no-audit --no-fund`（禁 --omit=optional；带 scripts 会因 sherpa-onnx GitHub 下载失败整树回滚）

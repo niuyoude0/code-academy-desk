@@ -27,12 +27,14 @@ export function QuizCard({
   block,
   state,
   onChange,
-  onJudge
+  onJudge,
+  chrome = 'read'
 }: {
   block: QuizBlock
   state?: QuizAnswerState
   onChange: (next: QuizAnswerState) => void
   onJudge: (correct: boolean) => void
+  chrome?: 'read' | 'review'
 }): React.JSX.Element {
   const options = block.options ?? []
   const multi = block.kind === 'choice' && block.answer.includes(',')
@@ -54,8 +56,8 @@ export function QuizCard({
   }
 
   return (
-    <BlockShell label={`quiz · ${block.kind}`} origin={block.origin} source={block.source ?? null}>
-      <div className="mb-2.5 font-medium">
+    <BlockShell label={`quiz · ${block.kind}`} origin={block.origin} source={block.source ?? null} chrome={chrome}>
+      <div className="mb-3 text-[14.5px] font-semibold leading-relaxed">
         <MdInline text={block.question} />
       </div>
       {block.kind === 'choice' ? (
@@ -70,14 +72,14 @@ export function QuizCard({
                 key={o.key}
                 type="button"
                 onClick={() => toggle(o.key)}
-                className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-left text-[13px] ${
+                className={`flex items-center gap-2.5 rounded-md border px-3 py-2 text-left text-[13.5px] ${
                   isAnswer
-                    ? 'border-ok/60 bg-ok/10 text-tx'
+                    ? 'border-ok/50 bg-ok/10 text-tx'
                     : isWrongPick
-                      ? 'border-bad/60 bg-bad/10 text-tx'
+                      ? 'border-bad/50 bg-bad/10 text-tx'
                       : picked
-                        ? 'border-acc bg-acc/10 text-tx'
-                        : 'border-line text-tx hover:bg-panel-hover'
+                        ? 'border-acc bg-acc/8 text-tx'
+                        : 'border-line/80 text-tx hover:bg-panel-hover'
                 }`}
               >
                 <span className="font-mono text-[11px] text-tx2">{o.key}</span>
@@ -94,7 +96,7 @@ export function QuizCard({
           onChange={(e) => change({ picked: [], input: e.target.value })}
           disabled={state?.judged === true}
           placeholder="输入答案"
-          className="w-full rounded-md border border-line bg-bg px-3 py-1.5 text-[13px] text-tx outline-none focus:border-acc"
+          className="w-full rounded-md border border-line/80 bg-bg px-3 py-2 text-[13.5px] text-tx outline-none focus:border-acc"
         />
       )}
       <div className="mt-2.5 flex items-center gap-2.5">
@@ -120,7 +122,7 @@ export function QuizCard({
         )}
       </div>
       {state?.judged === true && block.explanation != null && (
-        <div className="mt-2 rounded-md bg-bg px-3 py-2 text-[12.5px] text-tx2">
+        <div className="mt-2 rounded-md bg-bg2 px-3 py-2 text-[13px] leading-relaxed text-tx2">
           <span className="font-medium text-tx">解析：</span>
           <MdInline text={block.explanation} />
         </div>

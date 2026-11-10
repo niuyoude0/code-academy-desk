@@ -1,5 +1,4 @@
 import CodeMirror from '@uiw/react-codemirror'
-import { oneDark } from '@codemirror/theme-one-dark'
 import { python } from '@codemirror/lang-python'
 import { cpp } from '@codemirror/lang-cpp'
 import { javascript } from '@codemirror/lang-javascript'
@@ -7,7 +6,7 @@ import type { Extension } from '@codemirror/state'
 
 /**
  * P5.8 编程题代码编辑器（CodeMirror 6，选型报告既定；经 React.lazy 懒加载分包）。
- * 语言 → 扩展：python/cpp/javascript，白名单外纯文本。
+ * 语言 → 扩展：python/cpp/javascript，白名单外纯文本。2026-11-11 随宿主切浅色（默认 light 主题）。
  */
 
 function langExtension(language: string): Extension[] {
@@ -34,7 +33,6 @@ export default function CodeEditor({
   return (
     <CodeMirror
       value={value}
-      theme={oneDark}
       extensions={langExtension(language)}
       readOnly={readOnly}
       onChange={(v): void => onChange?.(v)}

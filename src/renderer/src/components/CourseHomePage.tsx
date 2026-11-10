@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { GraduationCap, Settings, FolderUp, FileUp, Plus, HelpCircle, Library, Bot } from 'lucide-react'
 import type { CourseIndexEntry } from '../../../shared/course-schema'
-import { CourseCard } from './CourseCard'
+import { CourseRow } from './CourseCard'
 import { ContinueBanner } from './ContinueBanner'
 import { EmptyState } from './EmptyState'
 import { ToastStack } from './Toast'
 import type { ToastItem, ToastKind } from './Toast'
 
 /**
- * P3 课程首页（对应 design/home.pen 两屏设计稿）：
- * 顶部导航栏 + 继续学习横幅 + 全部课程网格 + 导入/创建入口 + 空状态。
+ * P3 课程首页（2026-11-11 用户拍板视觉重做：弃卡片网格，改文档流 + IDEA 欢迎页式列表）：
+ * 顶部导航栏 + 居中阅读列（继续学习轻强调块 + 全部课程列表行 + 导入入口）+ 空状态。
  */
 export function CourseHomePage({
+  active,
   onOpenAgent,
   onOpenCourse
 }: {
+  /** 本页是否为当前视图（常驻挂载；切回时刷新课程列表——修「新建课程要重启才出现」） */
+  active: boolean
   onOpenAgent: () => void
   onOpenCourse: (courseId: string, title: string) => void
 }): React.JSX.Element {
@@ -39,7 +42,7 @@ export function CourseHomePage({
 
   useEffect(() => {
     refresh()
-  }, [refresh])
+  }, [refresh, active]) // active 切真时刷新（Agent 建课/导入后回到首页立即出现）
 
   const importPackage = useCallback((): void => {
     void window.api.courseImport().then((res) => {
@@ -137,78 +140,74 @@ export function CourseHomePage({
         </div>
       </header>
 
-      <main className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
-        {courses == null ? (
-          <div className="flex flex-1 items-center justify-center text-[13px] text-tx2">
-            正在加载课程…
-          </div>
-        ) : courses.length === 0 ? (
-          <EmptyState
-            onImportTextbook={() => toast('info', '教材 AI 构建流程将在 P5 提供，敬请期待')}
-            onImportPackage={importPackage}
-            onCreate={() => toast('info', '手动创建课程将在后续版本提供')}
-          />
-        ) : (
-          <>
-            {recent != null && (
-              <ContinueBanner course={recent} onContinue={() => onOpenCourse(recent.id, recent.title)} />
-            )}
-
-            <div className="flex items-center justify-between">
-              <span className="text-[13px] font-semibold tracking-wide text-tx2">全部课程</span>
-              {/* 排序下拉在 P10 学习记录接入后提供 */}
-              <span className="text-[12px] text-tx2">排序：最近学习</span>
+      <main className="flex min-h-0 flex-1 justify-center overflow-y-auto">
+        <div className="flex w-full max-w-[860px] flex-col px-10 py-8">
+          {courses == null ? (
+            <div className="flex flex-1 items-center justify-center text-[13px] text-tx2">
+              正在加载课程…
             </div>
+          ) : courses.length === 0 ? (
+            <EmptyState
+              onImportTextbook={importMaterial}
+              onImportPackage={importPackage}
+              onCreate={() => toast('info', '手动创建课程将在后续版本提供')}
+            />
+          ) : (
+            <div className="flex flex-col gap-9">
+              {recent != null && (
+                <ContinueBanner course={recent} onContinue={() => onOpenCourse(recent.id, recent.title)} />
+              )}
 
-            <div className="grid grid-cols-3 gap-4">
-              {courses.map((c) => (
-                <CourseCard
-                  key={c.id}
-                  course={c}
-                  onOpen={() => onOpenCourse(c.id, c.title)}
-                  onExport={exportCourse}
-                  onRemove={removeCourse}
-                />
-              ))}
-              <button
-                type="button"
-                onClick={importPackage}
-                className="flex h-[216px] flex-col items-center justify-center gap-2.5 rounded-lg border border-line text-tx2 hover:bg-panel-hover"
-              >
-                <FolderUp size={28} strokeWidth={1.5} />
-                <span className="text-[12.5px]">从课程包导入新课程</span>
-              </button>
+              <section>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-tx2">全部课程</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={onOpenAgent}
+                      title="在 AI 助教中按技能 course-material-processor 把教材资料构建成课程"
+                      className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12.5px] text-tx2 hover:bg-panel-hover hover:text-tx"
+                    >
+                      <FileUp size={13} /> 教材 · AI 构建
+                    </button>
+                    <button
+                      type="button"
+                      onClick={importMaterial}
+                      className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12.5px] text-tx2 hover:bg-panel-hover hover:text-tx"
+                    >
+                      <Library size={13} /> 导入教材资料
+                    </button>
+                    <button
+                      type="button"
+                      onClick={importPackage}
+                      className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12.5px] text-tx2 hover:bg-panel-hover hover:text-tx"
+                    >
+                      <FolderUp size={13} /> 导入课程包
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toast('info', '手动创建课程将在后续版本提供')}
+                      className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12.5px] text-tx2 hover:bg-panel-hover hover:text-tx"
+                    >
+                      <Plus size={13} /> 新建课程
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-col gap-0.5">
+                  {courses.map((c) => (
+                    <CourseRow
+                      key={c.id}
+                      course={c}
+                      onOpen={() => onOpenCourse(c.id, c.title)}
+                      onExport={exportCourse}
+                      onRemove={removeCourse}
+                    />
+                  ))}
+                </div>
+              </section>
             </div>
-
-            <div className="mt-2 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onOpenAgent}
-                title="在 AI 助教中按技能 course-material-processor 把教材资料构建成课程"
-                className="flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-[13px] text-tx hover:bg-panel-hover"
-              >
-                <FileUp size={14} className="text-tx2" />
-                导入教材 · AI 构建
-              </button>
-              <button
-                type="button"
-                onClick={importMaterial}
-                className="flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-[13px] text-tx hover:bg-panel-hover"
-              >
-                <Library size={14} className="text-tx2" />
-                导入教材资料
-              </button>
-              <button
-                type="button"
-                onClick={() => toast('info', '手动创建课程将在后续版本提供')}
-                className="flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-[13px] text-tx hover:bg-panel-hover"
-              >
-                <Plus size={14} className="text-tx2" />
-                新建课程
-              </button>
-            </div>
-          </>
-        )}
+          )}
+        </div>
       </main>
 
       <ToastStack toasts={toasts} />

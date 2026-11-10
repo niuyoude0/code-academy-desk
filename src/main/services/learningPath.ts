@@ -163,7 +163,7 @@ export async function saveKpLesson(
   return { file, kpId }
 }
 
-/** 标记生成失败（返工上限到达后；错误详情写 review.json 由调用方负责）。 */
+/** 标记生成失败（返工上限到达后；失败原因写 path.json 该 KP 的 genError）。 */
 export async function setKpGenFailed(
   coursesRoot: string,
   courseId: string,

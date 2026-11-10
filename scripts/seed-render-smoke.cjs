@@ -112,7 +112,6 @@ const progressFile = { schemaVersion: '2.0', courseId: id, updatedAt: now, curre
 fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2))
 fs.writeFileSync(path.join(dir, 'path.json'), JSON.stringify(pathFile, null, 2))
 fs.writeFileSync(path.join(dir, 'progress.json'), JSON.stringify(progressFile, null, 2))
-fs.writeFileSync(path.join(dir, 'review.json'), JSON.stringify({ reviews: [] }, null, 2))
 fs.writeFileSync(path.join(dir, 'chapters', 'ch01', 'ch01-k01.json'), JSON.stringify(lesson, null, 2))
 // P5.7 校对页验收：坏课样本（origin=book 缺 source → 铁律 error）直接写盘绕过校验
 fs.writeFileSync(path.join(dir, 'chapters', 'ch01', 'ch01-k00-legacy.json'), JSON.stringify({

@@ -2,28 +2,36 @@
 @import "katex/dist/katex.min.css";
 
 /*
- * JetBrains New UI（Dark）配色体系 —— 来自 design/home.pen 设计稿
- * bg #1E1F22 / panel #2B2D30 / border #393B40 / accent #3574F0
+ * JetBrains New UI（Light）配色体系 —— 用户 2026-11-11 拍板：弃暗色，整体参考 IDEA 浅色
+ * bg #FFFFFF / panel #F7F8FA / border #E3E6E9 / accent #3574F0 / tx #1E1F22 / tx2 #6C707E
+ * 排版基调：白底文档流（块不套卡片，仅 callout/quiz 保留浅色底纹）
  */
 @theme {
-  --color-bg: #1e1f22;
-  --color-bg2: #26282b;
-  --color-panel: #2b2d30;
-  --color-panel-hover: #323438;
-  --color-line: #393b40;
-  --color-tx: #dfe1e5;
-  --color-tx2: #9da0a8;
+  --color-bg: #ffffff;
+  --color-bg2: #f7f8fa;
+  --color-panel: #f7f8fa;
+  --color-panel-hover: #e9ebef;
+  --color-line: #e3e6e9;
+  --color-tx: #1e1f22;
+  --color-tx2: #6c707e;
   --color-acc: #3574f0;
-  --color-acc-hover: #4b82f5;
-  --color-ok: #57965c;
-  --color-warn: #be9117;
-  --color-bad: #db5c5c;
-  --color-track: #43454a;
+  --color-acc-hover: #2e68da;
+  --color-ok: #4f9257;
+  --color-warn: #9e6b00;
+  --color-bad: #d14343;
+  --color-track: #dce0e4;
+  /* 块型专属强调色（2026-11-11 排版升级：颜色语义分层） */
+  --color-thm: #8b5cf6; /* 定理/证明 */
+  --color-ins: #0e9384; /* 洞察/思考 */
 
   --font-sans:
     "Segoe UI Variable Text", "Segoe UI", -apple-system, "PingFang SC",
     "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei",
     "Noto Sans SC", sans-serif;
+  /* 衬线（书卷感）：引文/定义术语/定理名 */
+  --font-serif:
+    "Georgia", "Times New Roman", "Noto Serif SC", "Source Han Serif SC",
+    "思源宋体", "SimSun", serif;
   --font-mono:
     "Cascadia Code", "JetBrains Mono", Consolas, "Sarasa Mono SC",
     "Courier New", monospace;
@@ -41,7 +49,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   margin: 0;
-  /* JetBrains 风格：紧凑信息密度 */
+  /* JetBrains 风格：紧凑信息密度（阅读列内由 .md-view 放大字号） */
   font-size: 13px;
 }
 
@@ -62,7 +70,11 @@ body {
 
 /* ===== P5.5 课件块渲染器（A 层管线） ===== */
 
-/* markdown 正文（react-markdown 输出）：tailwind preflight 清了默认间距，这里补回语义排版 */
+/* markdown 正文（react-markdown 输出）：阅读列内的文档排版（14.5px / 1.85 行距，段落留白加大） */
+.md-view {
+  font-size: 14.5px;
+  line-height: 1.85;
+}
 .md-view > *:first-child {
   margin-top: 0;
 }
@@ -70,13 +82,13 @@ body {
   margin-bottom: 0;
 }
 .md-view p {
-  margin: 0.45em 0;
+  margin: 0.7em 0;
 }
 .md-view h1,
 .md-view h2,
 .md-view h3,
 .md-view h4 {
-  margin: 0.8em 0 0.4em;
+  margin: 0.9em 0 0.4em;
   font-weight: 600;
   color: var(--color-tx);
 }
@@ -101,7 +113,7 @@ body {
   list-style: decimal;
 }
 .md-view li {
-  margin: 0.2em 0;
+  margin: 0.25em 0;
 }
 .md-view li::marker {
   color: var(--color-tx2);
@@ -113,7 +125,7 @@ body {
   color: var(--color-tx2);
 }
 .md-view hr {
-  margin: 0.8em 0;
+  margin: 0.9em 0;
   border: 0;
   border-top: 1px solid var(--color-line);
 }
@@ -124,12 +136,12 @@ body {
 .md-view table {
   margin: 0.5em 0;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .md-view th,
 .md-view td {
   border: 1px solid var(--color-line);
-  padding: 4px 8px;
+  padding: 5px 10px;
 }
 .md-view th {
   background: var(--color-bg2);
@@ -150,22 +162,23 @@ body {
   margin: 0;
 }
 
-/* KaTeX（暗色适配：继承文字色，公式可横向滚动） */
+/* KaTeX（继承文字色，公式可横向滚动） */
 .katex {
   color: inherit;
   font-size: 1.06em;
 }
 .katex-display {
-  margin: 0.5em 0;
+  margin: 0.6em 0;
 }
 .katex-display > .katex {
   white-space: nowrap;
 }
 
-/* shiki 代码块容器（CodeView 注入的 <pre class="shiki">） */
+/* shiki 代码块容器（CodeView 注入的 <pre class="shiki">）：统一浅灰代码面板 */
 .cad-code pre {
   margin: 0;
-  padding: 12px;
+  padding: 12px 14px;
+  background: var(--color-bg2) !important; /* 盖过 shiki 主题内联底色，统一浅灰面板 */
   border-radius: 6px;
   overflow-x: auto;
   font-family: var(--font-mono);
@@ -175,7 +188,7 @@ body {
   font-family: var(--font-mono);
 }
 
-/* mermaid 图：适配暗底并约束宽度 */
+/* mermaid 图：适配浅底并约束宽度 */
 .mermaid-view svg {
   max-width: 100%;
   height: auto;

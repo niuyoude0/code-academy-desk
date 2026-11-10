@@ -35,12 +35,14 @@ export function CodingBlockView({
   block,
   courseId,
   onPassed,
-  onAskAgent
+  onAskAgent,
+  chrome = 'read'
 }: {
   block: CodingBlock
   courseId: string
   onPassed?: () => void
   onAskAgent?: (prompt: string) => void
+  chrome?: 'read' | 'review'
 }): React.JSX.Element {
   const [exercise, setExercise] = useState<ExerciseDocument | null>(null)
   const [loadErr, setLoadErr] = useState<string | null>(null)
@@ -115,9 +117,9 @@ export function CodingBlockView({
   }, [exercise, running, courseId, block.exerciseId, language, files, onPassed])
 
   return (
-    <BlockShell label="coding" origin={block.origin} source={null}>
+    <BlockShell label="coding" origin={block.origin} source={null} chrome={chrome}>
       {loadErr != null ? (
-        <div className="rounded-md border border-bad/40 bg-[#3a2426] px-3 py-2.5 text-[12.5px] text-bad">
+        <div className="rounded-md bg-bad/10 px-3 py-2.5 text-[12.5px] text-bad">
           编程题 {block.exerciseId} 无法加载：{loadErr}
           {onAskAgent != null && (
             <button
@@ -184,12 +186,12 @@ export function CodingBlockView({
           </div>
 
           {runErr != null && (
-            <div className="rounded-md border border-bad/40 bg-[#3a2426] px-3 py-2 text-[12.5px] text-bad">{runErr}</div>
+            <div className="rounded-md bg-bad/10 px-3 py-2 text-[12.5px] text-bad">{runErr}</div>
           )}
 
           {/* 编译输出（仅 C） */}
           {result?.compile != null && !result.compile.ok && (
-            <div className="rounded-md border border-bad/40 bg-[#3a2426] px-3 py-2">
+            <div className="rounded-md bg-bad/10 px-3 py-2">
               <div className="mb-1 text-[12px] font-medium text-bad">编译失败</div>
               <pre className="overflow-auto whitespace-pre-wrap font-mono text-[11.5px] text-tx2">{result.compile.output}</pre>
             </div>
@@ -237,7 +239,7 @@ function TestRow({ r }: { r: RunnerTestResult }): React.JSX.Element {
           </div>
           <div>
             <div className="mb-1 text-[10.5px] font-medium text-tx2">实际输出</div>
-            <pre className={`max-h-[160px] overflow-auto whitespace-pre-wrap rounded border px-2 py-1 font-mono text-[11px] ${r.passed ? 'border-line bg-bg text-tx2' : 'border-bad/40 bg-[#3a2426] text-bad'}`}>{r.actual || '（空）'}</pre>
+            <pre className={`max-h-[160px] overflow-auto whitespace-pre-wrap rounded border px-2 py-1 font-mono text-[11px] ${r.passed ? 'border-line bg-bg2 text-tx2' : 'border-bad/40 bg-bad/10 text-bad'}`}>{r.actual || '（空）'}</pre>
           </div>
           {r.stderr.length > 0 && (
             <div className="col-span-2">

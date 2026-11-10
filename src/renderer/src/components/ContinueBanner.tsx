@@ -1,4 +1,4 @@
-import { Bookmark, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import type { CourseIndexEntry } from '../../../shared/course-schema'
 import { langStyle, timeAgo } from '../lib/langStyle'
 
@@ -7,53 +7,39 @@ interface Props {
   onContinue: (id: string) => void
 }
 
-/** 「继续学习」主视觉横幅（对应 design/home.pen 的 ContinueBanner）。 */
+/**
+ * 「继续学习」区（2026-11-11 用户拍板：弃 200px 大横幅，改文档流轻强调块——
+ * 浅蓝底纹（豆包 callout 式），大标题 + 元信息 + 主按钮，一行直达）。
+ */
 export function ContinueBanner({ course, onContinue }: Props): React.JSX.Element {
   const style = langStyle(course.language)
   const Icon = style.icon
   return (
-    <div className="flex h-[200px] overflow-hidden rounded-lg border border-line bg-panel">
-      <div
-        className="flex w-[300px] shrink-0 flex-col items-center justify-center gap-3"
-        style={{ background: `linear-gradient(135deg, ${style.from}, ${style.to})` }}
-      >
-        <Icon size={44} className="text-white/90" strokeWidth={1.5} />
-        <span className="font-mono text-[11px] tracking-[0.2em] text-white/80">
-          {style.label} · {course.chapterCount} CHAPTERS
-        </span>
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-2.5 p-5">
-        <div className="flex items-center justify-between">
-          <span className="truncate text-[17px] font-semibold text-tx">{course.title}</span>
-          <button
-            type="button"
-            onClick={() => onContinue(course.id)}
-            className="flex h-8 items-center gap-1.5 rounded-md bg-acc px-3.5 text-[13px] font-medium text-white hover:bg-acc-hover"
-          >
-            继续学习
-            <ChevronRight size={14} />
-          </button>
+    <section>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-tx2">继续学习</div>
+      <div className="mt-3 flex items-center gap-4 rounded-lg bg-acc/8 px-5 py-4">
+        <div
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md"
+          style={{ background: `color-mix(in srgb, ${style.from} 14%, #ffffff)` }}
+        >
+          <Icon size={22} style={{ color: style.from }} strokeWidth={1.7} />
         </div>
-        <div className="text-[12px] text-tx2">
-          {course.chapterCount} 章 · {course.exerciseCount} 题 · 导入于 {timeAgo(course.importedAt)}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Bookmark size={14} className="text-acc" />
-          <span className="text-[12.5px] text-tx">
-            {course.lastStudiedAt != null
-              ? `上次学习 ${timeAgo(course.lastStudiedAt)}`
-              : '尚未开始学习，进入课程选择章节与习题'}
-          </span>
-        </div>
-        {/* P10 学习记录接线后填充真实进度 */}
-        <div className="mt-auto flex flex-col gap-1.5">
-          <div className="h-[5px] w-full rounded-full bg-track" />
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-tx2">总体学习进度</span>
-            <span className="font-mono text-[11px] font-semibold text-acc">0%</span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[16px] font-semibold text-tx">{course.title}</div>
+          <div className="mt-0.5 text-[12.5px] text-tx2">
+            {course.chapterCount} 章 · {course.exerciseCount} 题 ·{' '}
+            {course.lastStudiedAt != null ? `上次学习 ${timeAgo(course.lastStudiedAt)}` : `导入于 ${timeAgo(course.importedAt)}`}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => onContinue(course.id)}
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-acc px-3.5 text-[13px] font-medium text-white hover:bg-acc-hover"
+        >
+          进入课程
+          <ChevronRight size={14} />
+        </button>
       </div>
-    </div>
+    </section>
   )
 }

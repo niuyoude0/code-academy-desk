@@ -61,7 +61,6 @@ set_kp_gen_failed { courseId, kpId, reason: "具体原因" }
 ## 重新生成（用户要求重做某 KP）
 
 - 流程与主循环 B 完全一致（save_kp_lesson 覆写同一文件，manifest 不新增引用）。
-- 若 review.json 有该 KP 的 `feedback`（人工反馈），**必须先满足反馈再谈其他标准**。
 - 重新生成不影响其他 KP 课件与学习进度。
 
 ## 回溯与跳过的应对

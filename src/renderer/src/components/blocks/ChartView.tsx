@@ -6,8 +6,8 @@ type EchartsModule = typeof import('echarts/core')
 
 let echartsLoad: Promise<EchartsModule> | null = null
 
-const THEME = 'cad-dark'
-const PALETTE = ['#3574f0', '#57965c', '#be9117', '#db5c5c', '#977bf0', '#3fa7c4', '#d0a8ff', '#6ea86e']
+const THEME = 'cad-light'
+const PALETTE = ['#3574f0', '#4f9257', '#9e6b00', '#d14343', '#977bf0', '#3fa7c4', '#d0a8ff', '#6ea86e']
 
 /**
  * echarts 6 按需注册单例（design/renderer-libs-survey.md：echarts/core + 常用图表/组件）。
@@ -41,27 +41,27 @@ function loadEcharts(): Promise<EchartsModule> {
     echarts.registerTheme(THEME, {
       backgroundColor: 'transparent',
       color: PALETTE,
-      textStyle: { color: '#dfe1e5', fontFamily: '"Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif' },
-      title: { textStyle: { color: '#dfe1e5' }, subtextStyle: { color: '#9da0a8' } },
-      legend: { textStyle: { color: '#9da0a8' } },
+      textStyle: { color: '#1e1f22', fontFamily: '"Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif' },
+      title: { textStyle: { color: '#1e1f22' }, subtextStyle: { color: '#6c707e' } },
+      legend: { textStyle: { color: '#6c707e' } },
       tooltip: {
-        backgroundColor: '#2b2d30',
-        borderColor: '#393b40',
-        textStyle: { color: '#dfe1e5', fontSize: 12 }
+        backgroundColor: '#ffffff',
+        borderColor: '#e3e6e9',
+        textStyle: { color: '#1e1f22', fontSize: 12 }
       },
       categoryAxis: {
-        axisLine: { lineStyle: { color: '#43454a' } },
-        axisTick: { lineStyle: { color: '#43454a' } },
-        axisLabel: { color: '#9da0a8' },
-        splitLine: { lineStyle: { color: '#393b40' } },
-        nameTextStyle: { color: '#9da0a8' }
+        axisLine: { lineStyle: { color: '#dce0e4' } },
+        axisTick: { lineStyle: { color: '#dce0e4' } },
+        axisLabel: { color: '#6c707e' },
+        splitLine: { lineStyle: { color: '#eceef2' } },
+        nameTextStyle: { color: '#6c707e' }
       },
       valueAxis: {
-        axisLine: { lineStyle: { color: '#43454a' } },
-        axisTick: { lineStyle: { color: '#43454a' } },
-        axisLabel: { color: '#9da0a8' },
-        splitLine: { lineStyle: { color: '#393b40' } },
-        nameTextStyle: { color: '#9da0a8' }
+        axisLine: { lineStyle: { color: '#dce0e4' } },
+        axisTick: { lineStyle: { color: '#dce0e4' } },
+        axisLabel: { color: '#6c707e' },
+        splitLine: { lineStyle: { color: '#eceef2' } },
+        nameTextStyle: { color: '#6c707e' }
       }
     })
     return echarts
@@ -69,7 +69,7 @@ function loadEcharts(): Promise<EchartsModule> {
   return echartsLoad
 }
 
-/** chart 块（ECharts option 纯 JSON）。主题统一 JetBrains 暗色，option 里不写死颜色也能出效果。 */
+/** chart 块（ECharts option 纯 JSON）。主题统一 JetBrains 浅色，option 里不写死颜色也能出效果。 */
 export function ChartView({ option }: { option: Record<string, unknown> }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const [err, setErr] = useState<string | null>(null)

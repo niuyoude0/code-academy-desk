@@ -56,7 +56,7 @@ export function normalizeLang(lang: string): string {
   return ALIAS[l] ?? l
 }
 
-export const CODE_THEME = 'one-dark-pro'
+export const CODE_THEME = 'github-light'
 
 let singleton: Promise<HighlighterCore> | null = null
 const loadedLangs = new Set<string>()
@@ -65,7 +65,7 @@ async function createHighlighter(): Promise<HighlighterCore> {
   const [{ createHighlighterCore }, { createJavaScriptRegexEngine }, theme] = await Promise.all([
     import('shiki/core'),
     import('shiki/engine/javascript'),
-    import('@shikijs/themes/one-dark-pro')
+    import('@shikijs/themes/github-light')
   ])
   return createHighlighterCore({
     themes: [theme.default],

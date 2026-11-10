@@ -87,7 +87,8 @@ describe('Md（react-markdown 管线）', () => {
 
   it('白名单外语言回退纯文本 pre', async () => {
     const { host } = await render(createElement(CodeView, { code: 'PUSH A', language: 'pseudocode' }))
-    expect(host.querySelector('pre.cad-code')).not.toBeNull()
+    // 2026-11-11 视觉重做后 cad-code 类在外层容器，pre 是其子元素
+    expect(host.querySelector('.cad-code pre')).not.toBeNull()
   })
 })
 

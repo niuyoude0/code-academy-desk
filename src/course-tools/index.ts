@@ -22,7 +22,6 @@ import {
   getLessonV2,
   saveExerciseV2,
   getExerciseV2,
-  getReviewsV2,
   updateGenerationV2
 } from '../main/services/coursePackageV2'
 import {
@@ -303,7 +302,7 @@ function apply(ctx: {
   reg(
     defineTool({
       name: 'cad_get_lesson',
-      description: '读回已有课件 JSON（重新生成时对照旧版；人工 review 反馈在 cad_get_reviews 里）。',
+      description: '读回已有课件 JSON（重新生成时对照旧版结构与页码引用）。',
       parameters: { courseId: { ...ID, required: true }, chapterId: { type: 'string', description: '章节 id', required: true }, lessonId: { type: 'string', description: '课件 id（=KP id）', required: true } },
       output: textOut,
       execute: (args: Record<string, unknown>) =>
@@ -339,20 +338,6 @@ function apply(ctx: {
         exec('get_exercise', async () => {
           const { coursesRoot } = roots()
           return await getExerciseV2(coursesRoot, String(args.courseId), String(args.exerciseId))
-        })
-    })
-  )
-
-  reg(
-    defineTool({
-      name: 'cad_get_reviews',
-      description: '读课件审核记录（draft/valid/approved/failed + errors + 人工 feedback）。重新生成某课件前必读：feedback 是人工反馈，必须先满足。',
-      parameters: { courseId: { ...ID, required: true } },
-      output: textOut,
-      execute: (args: Record<string, unknown>) =>
-        exec('get_reviews', async () => {
-          const { coursesRoot } = roots()
-          return await getReviewsV2(coursesRoot, String(args.courseId))
         })
     })
   )

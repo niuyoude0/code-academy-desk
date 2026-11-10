@@ -7,7 +7,7 @@ import { getCourseAssetDataUrl } from './coursePackageV2'
 /**
  * P5.6 interactive 桥服务（D2 裁决：独立受限 Renderer + 白名单桥）。
  *  - 沙箱侧（AI 生成代码）不可信：路径限定/只读/尺寸上限全部在主进程强制
- *  - fs 桥 = 课程数据只读桥：仅允许课程包内 manifest/path/progress/review/chapters/exercises 文本文件
+ *  - fs 桥 = 课程数据只读桥：仅允许课程包内 manifest/path/progress/chapters/exercises 文本文件
  *  - system.getInfo / agent.askTutor 不在本服务（前者要 electron app、后者是渲染层本地动作），
  *    IPC 层分发时处理，见 interactiveIpc.ts
  */
@@ -24,7 +24,7 @@ function assertCourseRelText(relPath: string): string[] {
   }
   const parts = norm.split('/').filter((p) => p.length > 0 && p !== '.')
   const top = parts[0]
-  const topAllowed = ['manifest.json', 'path.json', 'progress.json', 'review.json', 'chapters', 'exercises']
+  const topAllowed = ['manifest.json', 'path.json', 'progress.json', 'chapters', 'exercises']
   if (parts.length === 0 || !topAllowed.includes(top ?? '')) {
     throw new InteractiveBridgeError(
       `fs 桥仅允许读取课程包内 ${topAllowed.join(' / ')}（收到: ${relPath}；图片用 readCourseAsset）`

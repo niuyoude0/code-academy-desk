@@ -13,11 +13,6 @@ import type {
   McpServerEntry,
   KpCompleteInput,
   CoursePathView,
-  ReviewOverview,
-  ReviewStatus,
-  ReviewFile,
-  OcrPageResult,
-  CapacityWarning,
   ExerciseDocument,
   RunnerRunInput,
   RunResult
@@ -73,25 +68,6 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IpcChannel.KpSkip, { courseId, kpId }),
   kpComplete: (input: KpCompleteInput): Promise<IpcResult<ProgressFile>> =>
     ipcRenderer.invoke(IpcChannel.KpComplete, input),
-  kpDigestSave: (input: { courseId: string; kpId: string; core: string; takeaway: string }): Promise<IpcResult<ProgressFile>> =>
-    ipcRenderer.invoke(IpcChannel.KpDigestSave, input),
-  reviewGet: (courseId: string): Promise<IpcResult<ReviewOverview>> =>
-    ipcRenderer.invoke(IpcChannel.ReviewGet, { courseId }),
-  reviewSetStatus: (input: {
-    courseId: string
-    lessonId: string
-    status: ReviewStatus
-    feedback?: string
-  }): Promise<IpcResult<ReviewFile>> => ipcRenderer.invoke(IpcChannel.ReviewSetStatus, input),
-  reviewValidate: (
-    courseId: string,
-    lessonId: string
-  ): Promise<IpcResult<{ errors: { path: string; message: string }[]; warns: CapacityWarning[]; words: number }>> =>
-    ipcRenderer.invoke(IpcChannel.ReviewValidate, { courseId, lessonId }),
-  reviewPageText: (
-    courseId: string,
-    ref: { ocrFile?: string; bookPage?: number | null }
-  ): Promise<IpcResult<OcrPageResult | null>> => ipcRenderer.invoke(IpcChannel.ReviewPageText, { courseId, ref }),
   lessonGet: (courseId: string, chapterId: string, lessonId: string): Promise<IpcResult<unknown>> =>
     ipcRenderer.invoke(IpcChannel.LessonGet, { courseId, chapterId, lessonId }),
   exerciseGet: (courseId: string, exerciseId: string): Promise<IpcResult<ExerciseDocument>> =>

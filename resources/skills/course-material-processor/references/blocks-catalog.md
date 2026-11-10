@@ -45,6 +45,8 @@
 
 ## 图形与可视化
 
+> 设计硬规则（怎么画才易懂/有趣/不踩语法坑）见 [visual-design-guides.md](visual-design-guides.md)——diagram/chart/anim/interactive 动手前先读对应节。
+
 | 块 | 用途 | 专有字段 | 常见错误 |
 |---|---|---|---|
 | diagram | 流程/层次/状态机 | `engine:'mermaid'` `mermaid`（mermaid 文本；**字段名不是 source**——source 保留给页码引用） | 语法错误——生成后必须 `validate_course_blocks`，mermaid 解析失败会回喂；**节点标签含 `[` 必须双引号包裹**（`A["a[i]"]`），裸写 `A[a[i]]` 直接 parse error |

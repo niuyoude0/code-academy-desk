@@ -263,9 +263,9 @@ function GraphTpl({ data, pointers, highlight }: FrameProps): React.JSX.Element 
           if (p1 == null || p2 == null) return null
           return (
             <g key={i}>
-              <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#43454a" strokeWidth={1.5} />
+              <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#dce0e4" strokeWidth={1.5} />
               {o.weight != null && (
-                <text x={(p1.x + p2.x) / 2} y={(p1.y + p2.y) / 2 - 3} textAnchor="middle" fill="#9da0a8" fontSize={10}>
+                <text x={(p1.x + p2.x) / 2} y={(p1.y + p2.y) / 2 - 3} textAnchor="middle" fill="#6c707e" fontSize={10}>
                   {fmt(o.weight)}
                 </text>
               )}
@@ -283,11 +283,11 @@ function GraphTpl({ data, pointers, highlight }: FrameProps): React.JSX.Element 
                 cx={p.x}
                 cy={p.y}
                 r={17}
-                fill={hl ? 'rgba(53,116,240,0.25)' : '#26282b'}
-                stroke={pt ? '#be9117' : hl ? '#3574f0' : '#43454a'}
+                fill={hl ? 'rgba(53,116,240,0.18)' : '#f7f8fa'}
+                stroke={pt ? '#9e6b00' : hl ? '#3574f0' : '#dce0e4'}
                 strokeWidth={pt ? 2 : 1.5}
               />
-              <text x={p.x} y={p.y + 4} textAnchor="middle" fill="#dfe1e5" fontSize={12} fontFamily="monospace">
+              <text x={p.x} y={p.y + 4} textAnchor="middle" fill="#1e1f22" fontSize={12} fontFamily="monospace">
                 {id}
               </text>
             </motion.g>

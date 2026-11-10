@@ -5,10 +5,8 @@ import type { ZodType } from 'zod'
 import JSZip from 'jszip'
 import {
   CourseManifestV2Schema,
-  ReviewFileSchema,
   ExerciseDocumentSchema,
-  MANIFEST_V2_FILE,
-  REVIEW_FILE
+  MANIFEST_V2_FILE
 } from '../../shared/course-v2-schema'
 import {
   PathFileSchema,
@@ -19,8 +17,6 @@ import {
 import type {
   CourseManifestV2,
   ChapterNodeV2,
-  ReviewFile,
-  ReviewStatus,
   ExerciseDocument
 } from '../../shared/course-v2-schema'
 import { validateLessonDocument, type ValidationResult } from '../../shared/lesson-schema'
@@ -28,11 +24,16 @@ import { upsertCourseIndexEntry } from './coursePackage'
 
 /**
  * P5.2 课程包 v2 读写服务：
- *  - 目录即包：manifest.json（章节树/生成信息/教材引用）+ chapters/ + exercises/ + assets/ + review.json
+ *  - 目录即包：manifest.json（章节树/生成信息/教材引用）+ chapters/ + exercises/ + assets/
  *  - 内容文件落盘前全部过 zod/铁律校验（Agent 与人工两条写入路径一致）
  *  - 局部重生成 = 覆写单个 lesson 文件 + 更新 manifest.updatedAt/生成信息
  *  - 与 v1 共存同一 coursesRoot（清单文件名区分）与同一份 index.json
+ * （2026-11-11 用户拍板：课件人工校对功能整体移除，改「一键重新生成」；
+ *   旧课程包/旧课程目录里遗留的 review.json 不再读写，成为惰性文件）
  */
+
+/** 旧版人工校对清单文件名——导入导出时跳过（不再读写，防止旧包携带时被当未知文件拒绝）。 */
+const LEGACY_REVIEW_FILE = 'review.json'
 
 export class CourseV2Error extends Error {}
 
@@ -89,18 +90,11 @@ async function writeManifest(coursesRoot: string, courseId: string, manifest: Co
   await fs.writeFile(path.join(dir, MANIFEST_V2_FILE), JSON.stringify(manifest, null, 2), 'utf-8')
 }
 
-/** 重算索引条目并落盘（章节/练习/审核计数）。 */
+/** 重算索引条目并落盘（章节/练习计数）。 */
 async function refreshIndexEntry(coursesRoot: string, courseId: string): Promise<void> {
   const manifest = await readManifest(coursesRoot, courseId)
   const exercisesDir = path.join(courseDir(coursesRoot, courseId), 'exercises')
   const exerciseCount = existsSync(exercisesDir) ? (await fs.readdir(exercisesDir)).filter((f) => f.endsWith('.json')).length : 0
-  let reviewApproved = 0
-  const reviewFile = path.join(courseDir(coursesRoot, courseId), REVIEW_FILE)
-  if (existsSync(reviewFile)) {
-    const review = await readJson<ReviewFile>(reviewFile, ReviewFileSchema, 'review.json')
-    reviewApproved = review.reviews.filter((r) => r.status === 'approved').length
-  }
-  const lessonTotal = manifest.chapters.reduce((n, c) => n + c.lessons.length, 0)
   await upsertCourseIndexEntry(coursesRoot, {
     id: manifest.id,
     title: manifest.title,
@@ -108,9 +102,7 @@ async function refreshIndexEntry(coursesRoot: string, courseId: string): Promise
     chapterCount: manifest.chapters.length,
     exerciseCount,
     importedAt: manifest.createdAt,
-    schemaVersion: '2.0',
-    reviewApproved,
-    reviewTotal: lessonTotal
+    schemaVersion: '2.0'
   })
 }
 
@@ -145,7 +137,6 @@ export async function createCourseV2(
   await fs.mkdir(path.join(dir, 'exercises'), { recursive: true })
   await fs.mkdir(path.join(dir, 'assets'), { recursive: true })
   await writeManifest(coursesRoot, input.id, manifest)
-  await fs.writeFile(path.join(dir, REVIEW_FILE), JSON.stringify({ reviews: [] }, null, 2), 'utf-8')
   await refreshIndexEntry(coursesRoot, input.id)
   return manifest
 }
@@ -311,44 +302,6 @@ export async function updateGenerationV2(
   return next
 }
 
-async function readReviewFile(coursesRoot: string, courseId: string): Promise<ReviewFile> {
-  const file = path.join(courseDir(coursesRoot, courseId), REVIEW_FILE)
-  if (!existsSync(file)) return { reviews: [] }
-  return readJson<ReviewFile>(file, ReviewFileSchema, 'review.json')
-}
-
-export async function getReviewsV2(coursesRoot: string, courseId: string): Promise<ReviewFile> {
-  return readReviewFile(coursesRoot, courseId)
-}
-
-/** 设置课件审核状态（校对页动作；failed 必须带错误清单）。 */
-export async function setReviewStatusV2(
-  coursesRoot: string,
-  courseId: string,
-  lessonId: string,
-  status: ReviewStatus,
-  extra?: { errors?: ValidationResult['errors']; feedback?: string }
-): Promise<ReviewFile> {
-  assertCourseId(lessonId)
-  const review = await readReviewFile(coursesRoot, courseId)
-  const record = {
-    lessonId,
-    status,
-    ...(extra?.errors != null ? { errors: extra.errors } : {}),
-    ...(extra?.feedback != null ? { feedback: extra.feedback } : {}),
-    updatedAt: now()
-  }
-  const others = review.reviews.filter((r) => r.lessonId !== lessonId)
-  const next: ReviewFile = { reviews: [...others, record] }
-  await fs.writeFile(
-    path.join(courseDir(coursesRoot, courseId), REVIEW_FILE),
-    JSON.stringify(next, null, 2),
-    'utf-8'
-  )
-  await refreshIndexEntry(coursesRoot, courseId)
-  return next
-}
-
 /* ===== zip 导入导出（v2 结构整体打包；内容文件逐个校验） ===== */
 
 async function addDirToZip(zip: JSZip, fsDir: string, zipPath: string): Promise<void> {
@@ -367,8 +320,6 @@ export async function exportCourseZipV2Buffer(coursesRoot: string, courseId: str
   const dir = courseDir(coursesRoot, courseId)
   const zip = new JSZip()
   zip.file(MANIFEST_V2_FILE, JSON.stringify(manifest, null, 2))
-  const review = await getReviewsV2(coursesRoot, courseId)
-  zip.file(REVIEW_FILE, JSON.stringify(review, null, 2))
   // 学习路径与进度随包迁移（P5.3a）
   for (const name of [PATH_FILE, PROGRESS_FILE]) {
     const f = path.join(dir, name)
@@ -426,7 +377,7 @@ export async function importCourseZipV2Buffer(
   for (const name of Object.keys(zip.files)) {
     const entry = zip.files[name]
     if (entry.dir) continue
-    if (name === MANIFEST_V2_FILE || name === REVIEW_FILE || name === PATH_FILE || name === PROGRESS_FILE) continue
+    if (name === MANIFEST_V2_FILE || name === LEGACY_REVIEW_FILE || name === PATH_FILE || name === PROGRESS_FILE) continue
     if (name.endsWith('.json')) {
       contentEntries.push({ name, json: await readEntryJson(entry, name) })
     } else {
@@ -477,11 +428,6 @@ export async function importCourseZipV2Buffer(
       const dest = path.join(dir, ...a.name.split('/'))
       await fs.mkdir(path.dirname(dest), { recursive: true })
       await fs.writeFile(dest, a.data)
-    }
-    const reviewEntry = zip.file(REVIEW_FILE)
-    if (reviewEntry != null) {
-      const parsedReview = ReviewFileSchema.parse(await readEntryJson(reviewEntry, REVIEW_FILE))
-      await fs.writeFile(path.join(dir, REVIEW_FILE), JSON.stringify(parsedReview, null, 2), 'utf-8')
     }
     // path.json / progress.json：有则校验后写入，courseId 必须与 manifest 一致
     for (const [name, schema] of [

@@ -216,6 +216,5 @@ describe('courseStats 课程统计', () => {
     expect(s.blocks).toMatchObject({ text: 1, concept: 1, example: 2, diagram: 1, quiz: 3 })
     expect(s.words).toBeGreaterThan(2500)
     expect(s.invalidLessons).toEqual([])
-    expect(s.review).toEqual({}) // 未审核
   })
 })

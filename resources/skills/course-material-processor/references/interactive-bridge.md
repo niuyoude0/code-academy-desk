@@ -2,10 +2,10 @@
 
 interactive 块 = 你写的 **单个 TSX 文件源码**（默认导出 React 函数组件），存进 `source` 字段。执行环境是**独立受限渲染沙箱**：编译在主进程 esbuild（白名单外 import 直接编译失败并回喂错误），运行在 opaque-origin 沙箱 iframe——**摸不到 Node、宿主 DOM 与任何敏感 API**，宿主能力只能走白名单桥。
 
-## 硬规矩（违反 = 编译失败 / 渲染失败 / 校对页直接拒绝）
+## 硬规矩（违反 = 编译失败 / 渲染失败）
 
 1. **只 import 白名单桥**（下表 12+1 项）。`fs`/`os`/`child_process`/`electron`/`node:*` 等一切模块与相对导入 `./xxx` 都会被编译器硬拒绝。
-2. **必须声明 `bridgeImports`**：实际用到的桥名（如 `["react","motion","controls"]`）。声明与实际 import 不符会在人审时被打回。
+2. **必须声明 `bridgeImports`**：实际用到的桥名（如 `["react","motion","controls"]`）。声明与实际 import 不符 = 编译失败被回喂返工。
 3. **默认导出组件**：`export default function Demo() {...}`。禁顶层副作用（顶层 fetch/定时器/写状态）。
 4. 源码 ≤500KB；ESM import only（禁 `require`）；禁 `eval`/`new Function`/动态字符串 import。
 5. **禁网络访问**：没有 fetch 可用的场景语义（数据从桥/props 来）。
@@ -40,7 +40,7 @@ const progress = await getProgress()   // { currentKpId, kps:[{kpId,state,quizBe
 const manifest = await getManifest()   // { title, chapters:[{id,title,lessons:[...]}] }
 ```
 
-- 允许读：`manifest.json / path.json / progress.json / review.json / chapters/** / exercises/**`（文本 ≤2MB）与 `assets/**` 图片（≤20MB）。
+- 允许读：`manifest.json / path.json / progress.json / chapters/** / exercises/**`（文本 ≤2MB）与 `assets/**` 图片（≤20MB）。
 - 一切都在**主进程侧强制**：`..`/绝对路径/白名单外目录直接报错。组件里不用做防御，但不要写出会失败的路径。
 - **写入不存在**：学习进度只由应用的学习判定门改；组件只读。
 

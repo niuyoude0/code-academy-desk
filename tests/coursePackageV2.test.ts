@@ -10,8 +10,6 @@ import {
   getLessonV2,
   saveExerciseV2,
   getExerciseV2,
-  setReviewStatusV2,
-  getReviewsV2,
   exportCourseZipV2Buffer,
   importCourseZipV2Buffer,
   updateGenerationV2
@@ -94,7 +92,6 @@ describe('课程包 v2 生命周期', () => {
     const entry = (await listCourses(coursesA)).find((c) => c.id === 'ddca')
     expect(entry?.schemaVersion).toBe('2.0')
     expect(entry?.chapterCount).toBe(1)
-    expect(entry?.reviewTotal).toBe(1)
   })
 
   it('课件校验失败被拒（铁律 1：book 无页码），文件不落盘', async () => {
@@ -118,22 +115,6 @@ describe('课程包 v2 生命周期', () => {
     await expect(saveExerciseV2(coursesA, 'ddca', { id: 'bad ex!', title: 'x' })).rejects.toThrow(/练习校验失败/)
     const entry = (await listCourses(coursesA)).find((c) => c.id === 'ddca')
     expect(entry?.exerciseCount).toBe(1)
-  })
-
-  it('审核状态流转并反映到索引（approved 计数）', async () => {
-    await setReviewStatusV2(coursesA, 'ddca', 'l01', 'approved')
-    const review = await getReviewsV2(coursesA, 'ddca')
-    expect(review.reviews[0]).toMatchObject({ lessonId: 'l01', status: 'approved' })
-    const entry = (await listCourses(coursesA)).find((c) => c.id === 'ddca')
-    expect(entry?.reviewApproved).toBe(1)
-    // failed 必须带错误
-    await setReviewStatusV2(coursesA, 'ddca', 'l01', 'failed', {
-      errors: [{ path: 'b1.source', message: '缺页码' }],
-      feedback: '补页码后重新生成'
-    })
-    const again = await getReviewsV2(coursesA, 'ddca')
-    expect(again.reviews[0].status).toBe('failed')
-    expect(again.reviews[0].feedback).toContain('重新生成')
   })
 
   it('局部重生成：覆写同一 lesson 文件 + 更新 manifest.updatedAt', async () => {
@@ -178,10 +159,6 @@ describe('课程包 v2 zip 往返', () => {
     expect(manifestB).toEqual(manifestA)
     const lessonB = (await getLessonV2(coursesB, 'ddca', 'ch-03', 'l01')) as { lessonId: string }
     expect(lessonB.lessonId).toBe('l01')
-    // review.json 也随包迁移
-    const reviewB = await getReviewsV2(coursesB, 'ddca')
-    expect(reviewB.reviews[0].status).toBe('failed')
-
     // 目标已存在拒绝覆盖
     await expect(importCourseZipV2Buffer(coursesB, zip)).rejects.toThrow(/拒绝覆盖/)
   })

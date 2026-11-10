@@ -1,14 +1,14 @@
 import { promises as fs } from 'fs'
 import { existsSync } from 'fs'
 import path from 'path'
-import { getManifestV2, getReviewsV2 } from './coursePackageV2'
+import { getManifestV2 } from './coursePackageV2'
 import { getPath, getProgress } from './learningPath'
 import { validateLessonDocument, type LessonBlock } from '../../shared/lesson-schema'
 import { checkLessonCapacity, countLessonWords } from '../../shared/lesson-quality'
 
 /**
  * P5.2.5 课程统计（插件 cad_course_stats 实现，只读聚合）：
- *  - 一次返回章/KP/生成状态/学习进度/审核/块型分布/正文字数——汇报与任务进度播报的数据源
+ *  - 一次返回章/KP/生成状态/学习进度/块型分布/正文字数——汇报与任务进度播报的数据源
  *  - 纯 Node 实现，插件构建时同源打包
  */
 
@@ -19,7 +19,6 @@ export interface CourseStats {
   lessons: number
   path: { total: number; gen: Record<string, number> } | null
   progress: { currentKpId: string | null; states: Record<string, number> } | null
-  review: Record<string, number>
   blocks: Record<string, number>
   words: number
   /** 逐课件校验不通过的文件（正常应为空） */
@@ -35,7 +34,6 @@ export async function getCourseStats(coursesRoot: string, courseId: string): Pro
     lessons: manifest.chapters.reduce((n, c) => n + c.lessons.length, 0),
     path: null,
     progress: null,
-    review: {},
     blocks: {},
     words: 0,
     invalidLessons: []
@@ -58,9 +56,6 @@ export async function getCourseStats(coursesRoot: string, courseId: string): Pro
   } catch {
     /* 无 progress.json 不报错 */
   }
-
-  const review = await getReviewsV2(coursesRoot, courseId)
-  for (const r of review.reviews) stats.review[r.status] = (stats.review[r.status] ?? 0) + 1
 
   const chaptersDir = path.join(coursesRoot, courseId, 'chapters')
   if (existsSync(chaptersDir)) {
