@@ -9,7 +9,7 @@ import {
   PROGRESS_FILE
 } from '../../shared/learning-path-schema'
 import type { PathFile, PathEntry, ProgressFile, ProgressKpEntry, KpLearningContext } from '../../shared/learning-path-schema'
-import { getLessonV2, getManifestV2, saveLessonV2, CourseV2Error } from './coursePackageV2'
+import { getLessonV2, getManifestV2, saveLessonV2, touchCourseLearning, CourseV2Error } from './coursePackageV2'
 
 /**
  * P5.3a 学习路径服务（知识点驱动，2026-11-10 用户六原则拍板）：
@@ -204,6 +204,7 @@ export async function startKp(coursesRoot: string, courseId: string, kpId: strin
     kps: [...others, entry]
   }
   await writeProgress(coursesRoot, courseId, next)
+  await touchCourseLearning(coursesRoot, courseId)
   return next
 }
 
@@ -350,6 +351,7 @@ export async function completeKp(
     kps: [...others, entry]
   }
   await writeProgress(coursesRoot, courseId, next)
+  await touchCourseLearning(coursesRoot, courseId)
   return next
 }
 
@@ -370,6 +372,7 @@ export async function skipKp(coursesRoot: string, courseId: string, kpId: string
     kps: [...others, entry]
   }
   await writeProgress(coursesRoot, courseId, next)
+  await touchCourseLearning(coursesRoot, courseId)
   return next
 }
 

@@ -5,8 +5,7 @@ import os from 'os'
 import {
   listWorkspaceTree,
   readWorkspaceFile,
-  writeWorkspaceFile,
-  WorkspaceError
+  writeWorkspaceFile
 } from '../src/main/services/workspaceFs'
 
 /**

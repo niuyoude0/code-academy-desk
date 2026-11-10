@@ -28,8 +28,25 @@ export function ContinueBanner({ course, onContinue }: Props): React.JSX.Element
           <div className="truncate text-[16px] font-semibold text-tx">{course.title}</div>
           <div className="mt-0.5 text-[12.5px] text-tx2">
             {course.chapterCount} 章 · {course.exerciseCount} 题 ·{' '}
-            {course.lastStudiedAt != null ? `上次学习 ${timeAgo(course.lastStudiedAt)}` : `导入于 ${timeAgo(course.importedAt)}`}
+            {course.totalKps != null && course.totalKps > 0
+              ? `${course.completedKps ?? 0}/${course.totalKps} 知识点已完成`
+              : course.lastStudiedAt != null
+                ? `上次学习 ${timeAgo(course.lastStudiedAt)}`
+                : `导入于 ${timeAgo(course.importedAt)}`}
           </div>
+          {course.totalKps != null && course.totalKps > 0 && (
+            <div className="mt-2 flex items-center gap-2">
+              <div className="h-[5px] w-full max-w-[280px] overflow-hidden rounded-full bg-track/70">
+                <div
+                  className="h-full rounded-full bg-acc transition-all"
+                  style={{ width: `${Math.round(((course.completedKps ?? 0) / course.totalKps) * 100)}%` }}
+                />
+              </div>
+              <span className="font-mono text-[11px] font-semibold text-acc">
+                {Math.round(((course.completedKps ?? 0) / course.totalKps) * 100)}%
+              </span>
+            </div>
+          )}
         </div>
         <button
           type="button"

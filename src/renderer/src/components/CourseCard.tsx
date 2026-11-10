@@ -52,6 +52,15 @@ export function CourseRow({ course, onOpen, onExport, onRemove }: Props): React.
           <span className="text-tx2/40">·</span>
           <span>
             {course.chapterCount} 章 · {course.exerciseCount} 题
+            {course.totalKps != null && course.totalKps > 0 && (
+              <>
+                {' '}
+                ·{' '}
+                <span className={course.completedKps === course.totalKps ? 'font-medium text-ok' : ''}>
+                  {course.completedKps ?? 0}/{course.totalKps} 已完成
+                </span>
+              </>
+            )}
           </span>
           <span className="text-tx2/40">·</span>
           <span>

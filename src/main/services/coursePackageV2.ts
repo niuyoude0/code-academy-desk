@@ -14,13 +14,14 @@ import {
   PATH_FILE,
   PROGRESS_FILE
 } from '../../shared/learning-path-schema'
+import type { PathFile, ProgressFile } from '../../shared/learning-path-schema'
 import type {
   CourseManifestV2,
   ChapterNodeV2,
   ExerciseDocument
 } from '../../shared/course-v2-schema'
 import { validateLessonDocument, type ValidationResult } from '../../shared/lesson-schema'
-import { upsertCourseIndexEntry } from './coursePackage'
+import { listCourses, upsertCourseIndexEntry } from './coursePackage'
 
 /**
  * P5.2 课程包 v2 读写服务：
@@ -90,11 +91,36 @@ async function writeManifest(coursesRoot: string, courseId: string, manifest: Co
   await fs.writeFile(path.join(dir, MANIFEST_V2_FILE), JSON.stringify(manifest, null, 2), 'utf-8')
 }
 
-/** 重算索引条目并落盘（章节/练习计数）。 */
+/** 重算索引条目并落盘（章节/练习计数 + P10 真实学习进度聚合）。 */
 async function refreshIndexEntry(coursesRoot: string, courseId: string): Promise<void> {
+  const dir = courseDir(coursesRoot, courseId)
   const manifest = await readManifest(coursesRoot, courseId)
-  const exercisesDir = path.join(courseDir(coursesRoot, courseId), 'exercises')
+  const exercisesDir = path.join(dir, 'exercises')
   const exerciseCount = existsSync(exercisesDir) ? (await fs.readdir(exercisesDir)).filter((f) => f.endsWith('.json')).length : 0
+
+  // P10：path.json 总数 × progress.json 结算数（completed/skipped 视为已过）
+  let totalKps: number | undefined
+  let completedKps: number | undefined
+  const pathFile = path.join(dir, PATH_FILE)
+  if (existsSync(pathFile)) {
+    try {
+      const pf = await readJson<PathFile>(pathFile, PathFileSchema, 'path.json')
+      totalKps = pf.kps.length
+      const progFile = path.join(dir, PROGRESS_FILE)
+      if (existsSync(progFile)) {
+        const pg = await readJson<ProgressFile>(progFile, ProgressFileSchema, 'progress.json')
+        const settled = new Set(
+          pg.kps.filter((k) => k.state === 'completed' || k.state === 'skipped').map((k) => k.kpId)
+        )
+        completedKps = pf.kps.filter((k) => settled.has(k.id)).length
+      }
+    } catch {
+      /* 路径/进度文件损坏时不阻塞索引刷新 */
+    }
+  }
+
+  // 重建条目保留 lastStudiedAt（upsert 是整条替换）
+  const prev = (await listCourses(coursesRoot)).find((c) => c.id === manifest.id)
   await upsertCourseIndexEntry(coursesRoot, {
     id: manifest.id,
     title: manifest.title,
@@ -102,8 +128,21 @@ async function refreshIndexEntry(coursesRoot: string, courseId: string): Promise
     chapterCount: manifest.chapters.length,
     exerciseCount,
     importedAt: manifest.createdAt,
-    schemaVersion: '2.0'
+    schemaVersion: '2.0',
+    ...(prev?.lastStudiedAt != null ? { lastStudiedAt: prev.lastStudiedAt } : {}),
+    ...(totalKps != null ? { totalKps, completedKps: completedKps ?? 0 } : {})
   })
+}
+
+/** P10：学习动作（start/complete/skip）后调用——重算真实进度并盖 lastStudiedAt 时间戳。 */
+export async function touchCourseLearning(coursesRoot: string, courseId: string): Promise<void> {
+  const entry = (await listCourses(coursesRoot)).find((c) => c.id === courseId)
+  if (entry == null) return
+  await refreshIndexEntry(coursesRoot, courseId)
+  const cur = (await listCourses(coursesRoot)).find((c) => c.id === courseId)
+  if (cur != null) {
+    await upsertCourseIndexEntry(coursesRoot, { ...cur, lastStudiedAt: new Date().toISOString() })
+  }
 }
 
 /** 创建 v2 课程（目录脚手架 + manifest + 索引）。 */

@@ -40,6 +40,7 @@ export const IpcChannel = {
   WorkspaceTree: 'workspace:tree',
   WorkspaceRead: 'workspace:read',
   WorkspaceWrite: 'workspace:write',
+  WorkspaceRun: 'workspace:run',
   InteractiveCompile: 'interactive:compile',
   InteractiveBridge: 'interactive:bridge'
 } as const
@@ -177,6 +178,16 @@ export interface WorkspaceWriteResult {
   commit: string | null
 }
 
+/** P8 通用单文件执行结果（文件工作区「运行」）。 */
+export interface ScriptRunResult {
+  language: string
+  stdout: string
+  stderr: string
+  exitCode: number | null
+  timedOut: boolean
+  durationMs: number
+}
+
 export interface RunnerTestResult {
   id: string
   name: string
@@ -252,6 +263,8 @@ export interface DesktopApi {
   workspaceTree(courseId: string): Promise<IpcResult<WorkspaceNode[]>>
   workspaceRead(courseId: string, relPath: string): Promise<IpcResult<{ content: string }>>
   workspaceWrite(courseId: string, relPath: string, content: string): Promise<IpcResult<WorkspaceWriteResult>>
+  /** P8：通用单文件执行（内容直传——运行编辑器当前草稿；扩展名定语言白名单 py/js/c） */
+  workspaceRun(courseId: string, fileName: string, content: string): Promise<IpcResult<ScriptRunResult>>
   /** 读练习文档（编程题题面/起步文件/测试） */
   exerciseGet(courseId: string, exerciseId: string): Promise<IpcResult<ExerciseDocument>>
   /** 本机运行编程题（P8 Runner：临时工作区/超时杀树/stdin-stdout 测试判定） */

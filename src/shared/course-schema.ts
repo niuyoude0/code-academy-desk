@@ -219,8 +219,9 @@ export interface CourseIndexEntry {
   exerciseCount: number
   importedAt: string
   lastStudiedAt?: string
-  /** v2 课程包带格式版本与审核进度（v1 条目缺省） */
+  /** v2 课程包带格式版本（v1 条目缺省） */
   schemaVersion?: string
-  reviewApproved?: number
-  reviewTotal?: number
+  /** P10 学习记录：path.json 的 KP 总数与已结算（completed/skipped）数（无路径的课程缺省） */
+  totalKps?: number
+  completedKps?: number
 }

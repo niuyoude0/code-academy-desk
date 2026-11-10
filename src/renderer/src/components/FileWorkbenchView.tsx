@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Tree, type NodeApi } from 'react-arborist'
-import { Plus, Save, Loader2, FileText, FolderClosed, FolderOpen, GitCommitHorizontal } from 'lucide-react'
-import type { WorkspaceNode } from '../../../shared/ipc'
+import { Plus, Save, Loader2, FileText, FolderClosed, FolderOpen, GitCommitHorizontal, Play } from 'lucide-react'
+import type { ScriptRunResult, WorkspaceNode } from '../../../shared/ipc'
 
 /**
  * P7 文件工作区视图（学习页右侧「文件」页签）：
@@ -78,6 +78,8 @@ export function FileWorkbenchView({ courseId }: { courseId: string }): React.JSX
   const [status, setStatus] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
+  const [runResult, setRunResult] = useState<ScriptRunResult | null>(null)
+  const [running, setRunning] = useState(false)
   const [treeRef, treeSize] = useMeasure()
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -155,6 +157,18 @@ export function FileWorkbenchView({ courseId }: { courseId: string }): React.JSX
   }, [newName, courseId, refresh, openFile])
 
   const dirty = selected != null && draft !== saved
+
+  /** P8 通用执行：直接跑编辑器当前草稿（不要求先保存；扩展名定语言白名单 py/js/c）。 */
+  const doRun = useCallback(async (): Promise<void> => {
+    if (selected == null || running) return
+    setRunning(true)
+    setStatus(null)
+    setRunResult(null)
+    const res = await window.api.workspaceRun(courseId, selected.split('/').pop() ?? selected, draft)
+    setRunning(false)
+    if (res.ok) setRunResult(res.data)
+    else setStatus({ kind: 'bad', text: res.error })
+  }, [selected, running, courseId, draft])
 
   return (
     <div className="flex h-full min-h-0 bg-bg">
@@ -244,9 +258,21 @@ export function FileWorkbenchView({ courseId }: { courseId: string }): React.JSX
           {selected != null && (
             <button
               type="button"
+              disabled={running}
+              title="运行当前文件（python/.js/.c；直接跑编辑器草稿）"
+              onClick={() => void doRun()}
+              className="ml-auto flex h-6 shrink-0 items-center gap-1 rounded bg-ok/90 px-2 text-[11px] font-medium text-white hover:bg-ok disabled:opacity-40"
+            >
+              {running ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} />}
+              运行
+            </button>
+          )}
+          {selected != null && (
+            <button
+              type="button"
               disabled={!dirty || saving}
               onClick={() => void doSave()}
-              className="ml-auto flex h-6 shrink-0 items-center gap-1 rounded bg-acc px-2 text-[11px] font-medium text-white hover:bg-acc-hover disabled:opacity-40"
+              className="flex h-6 shrink-0 items-center gap-1 rounded bg-acc px-2 text-[11px] font-medium text-white hover:bg-acc-hover disabled:opacity-40"
             >
               {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
               保存
@@ -286,6 +312,29 @@ export function FileWorkbenchView({ courseId }: { courseId: string }): React.JSX
             </Suspense>
           )}
         </div>
+        {runResult != null && (
+          <div className="shrink-0 border-t border-line bg-bg2">
+            <div className="flex items-center gap-2 px-2.5 py-1 text-[10.5px] text-tx2">
+              <span className="font-mono">退出码 {runResult.exitCode ?? '—'}</span>
+              <span>· {runResult.language}</span>
+              <span>· {(runResult.durationMs / 1000).toFixed(1)}s</span>
+              {runResult.timedOut && <span className="text-warn">· 超时已杀树</span>}
+              <button type="button" onClick={() => setRunResult(null)} className="ml-auto text-tx2/60 hover:text-tx">
+                收起
+              </button>
+            </div>
+            {runResult.stdout.trim().length > 0 && (
+              <pre className="max-h-40 overflow-auto border-t border-line px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-tx">
+                {runResult.stdout}
+              </pre>
+            )}
+            {runResult.stderr.trim().length > 0 && (
+              <pre className="max-h-40 overflow-auto border-t border-line bg-bad/5 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-bad">
+                {runResult.stderr}
+              </pre>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -5,6 +5,7 @@ import os from 'os'
 import { spawnSync } from 'child_process'
 import {
   runExercise,
+  runScript,
   normalizeRunnerLanguage,
   normalizeOutput,
   parseFiles,
@@ -195,4 +196,55 @@ describe('P8 runner：纯函数', () => {
     }
     void statSync
   })
+})
+
+describe('P8 通用单文件执行（runScript，文件工作区「运行」）', () => {
+  it('python stdout/退出码捕获；js node24 档位', async () => {
+    const r = (await runScript({
+      workspaceRoot: tmpRoot,
+      courseId: 't1',
+      fileName: 'scratch.py',
+      content: 'print(6 * 7)\n'
+    })) as import('../src/shared/ipc').ScriptRunResult
+    expect(r.language).toBe('python')
+    expect(r.exitCode).toBe(0)
+    expect(r.stdout.trim()).toBe('42')
+    expect(r.stderr).toBe('')
+
+    if (!hasNode24) return
+    const j = (await runScript({
+      workspaceRoot: tmpRoot,
+      courseId: 't1',
+      fileName: 'scratch.js',
+      content: 'console.log("ok", 1 + 1)\n',
+      node24Path: node24
+    })) as import('../src/shared/ipc').ScriptRunResult
+    expect(j.language).toBe('javascript')
+    expect(j.stdout.trim()).toBe('ok 2')
+  }, 30_000)
+
+  it('非零退出码与 stderr 保留；超时杀树；非法扩展名拒绝', async () => {
+    const bad = (await runScript({
+      workspaceRoot: tmpRoot,
+      courseId: 't1',
+      fileName: 'boom.py',
+      content: 'import sys\nprint("to-out")\nsys.stderr.write("to-err")\nsys.exit(3)\n'
+    })) as import('../src/shared/ipc').ScriptRunResult
+    expect(bad.exitCode).toBe(3)
+    expect(bad.stdout.trim()).toBe('to-out')
+    expect(bad.stderr).toContain('to-err')
+
+    const loop = (await runScript({
+      workspaceRoot: tmpRoot,
+      courseId: 't1',
+      fileName: 'hang.py',
+      content: 'while True:\n    pass\n',
+      timeoutMs: 3000
+    })) as import('../src/shared/ipc').ScriptRunResult
+    expect(loop.timedOut).toBe(true)
+
+    await expect(
+      runScript({ workspaceRoot: tmpRoot, courseId: 't1', fileName: 'doc.md', content: 'x' })
+    ).rejects.toThrow(/不支持的执行语言/)
+  }, 30_000)
 })

@@ -258,3 +258,91 @@ export async function runExercise(input: RunExerciseInput): Promise<RunResult> {
     entryPath: entries[0].path
   }
 }
+
+/* ===== P8 收尾：通用单文件执行（文件工作区「运行」按钮） ===== */
+
+export interface ScriptRunResult {
+  language: RunnerLanguage
+  stdout: string
+  stderr: string
+  exitCode: number | null
+  timedOut: boolean
+  durationMs: number
+}
+
+export interface RunScriptInput {
+  workspaceRoot: string
+  courseId: string
+  /** 文件名（含扩展名；展平到 scratch 目录执行） */
+  fileName: string
+  content: string
+  timeoutMs?: number
+  node24Path?: string
+}
+
+/** 通用单文件运行：无判定，捕获 stdout/stderr/退出码。复用 runExercise 的沙盒与超时杀树设施。 */
+export async function runScript(input: RunScriptInput): Promise<ScriptRunResult> {
+  if (!/^[\w\-]+$/.test(input.courseId)) {
+    throw new RunnerError('非法课程 id')
+  }
+  const name = assertSafeRel(input.fileName)
+  const ext = name.slice(name.lastIndexOf('.')).toLowerCase()
+  const language = normalizeRunnerLanguage(
+    ext === '.py' ? 'python' : ext === '.js' ? 'javascript' : ext === '.c' ? 'c' : ext.replace(/^\./, '')
+  )
+  if (Buffer.byteLength(input.content, 'utf-8') > 512 * 1024) {
+    throw new RunnerError('内容超过 512KB 上限')
+  }
+
+  const runDir = path.join(input.workspaceRoot, 'runs', input.courseId, '_scratch')
+  await fs.rm(runDir, { recursive: true, force: true })
+  await fs.mkdir(runDir, { recursive: true })
+  await fs.writeFile(path.join(runDir, name), input.content, 'utf-8')
+
+  const timeoutMs = Math.min(Math.max(input.timeoutMs ?? DEFAULT_TEST_TIMEOUT_MS, 1000), MAX_TEST_TIMEOUT_MS)
+  const env: Record<string, string> =
+    language === 'python' ? { PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' } : {}
+  const startedAt = Date.now()
+
+  let runCommand: string
+  let runArgs: string[]
+
+  if (language === 'c') {
+    await assertCommandAvailable('gcc', ['--version'], '请安装 MinGW-w64 并把 gcc 加入 PATH')
+    const compileRes = await execWithTimeout({
+      command: 'gcc',
+      args: [name, '-o', 'main.exe'],
+      cwd: runDir,
+      timeoutMs: Math.max(timeoutMs, 30_000)
+    })
+    if (compileRes.exitCode !== 0) {
+      return {
+        language,
+        stdout: '',
+        stderr: `编译失败:\n${compileRes.stdout}\n${compileRes.stderr}`.trim(),
+        exitCode: compileRes.exitCode,
+        timedOut: false,
+        durationMs: Date.now() - startedAt
+      }
+    }
+    runCommand = path.join(runDir, 'main.exe')
+    runArgs = []
+  } else if (language === 'python') {
+    await assertCommandAvailable('python', ['--version'], '请安装 Python 并加入 PATH')
+    runCommand = 'python'
+    runArgs = [name]
+  } else {
+    runCommand = await resolveNodeCommand([input.node24Path ?? '', 'node'].filter((s) => s !== ''))
+    runArgs = [name]
+  }
+
+  const res = await execWithTimeout({ command: runCommand, args: runArgs, cwd: runDir, timeoutMs, env })
+  return {
+    language,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exitCode: res.exitCode,
+    timedOut: res.timedOut,
+    durationMs: res.durationMs
+  }
+}

@@ -243,6 +243,15 @@ JSONL 落 `$DSH_HOME/sessions/`；渲染层 localStorage 持 sessionId，重启�
 
 ## 11. 下一步开发计划（当前主线：P5.8）
 
+
+
+### P6 三栏工作台 + P7 文件工作区（✅ 2026-11-11 凌晨完成）
+
+- **P6**：`react-resizable-panels@2` 三栏（KP 列 | 阅读列 | 工作台侧栏）——拖拽宽度，`autoSaveId` localStorage 持久化布局；学习页 header 增「助教/文件」开关。**AI 助教抽为 `agentChatStore` 单例**（useSyncExternalStore）：全页 AgentChatPage 与新 `AgentSidePanel` 共用同一 DSH 会话/消息流/事件订阅（一份订阅，两视图纯渲染壳）；`requestPrompt`（空闲即发、忙则挂起 finish 后补发）取代 pendingPrompt 管道；`ChatTranscript` 共享消息流渲染（compact 双模式）
+- **P7**：`services/workspaceFs.ts`——每课程持久沙盒 `<workspaceRoot>/files/<courseId>/`（与 runner 的 runs/ 隔离），路径限定（穿越/绝对/反斜杠/空段拒绝）+ 512KB 文本上限 + 点文件/.git 过滤；**isomorphic-git 快照**（init 幂等 + add + commit best-effort，失败不阻塞写入）；IPC `workspace:tree/read/write`；`FileWorkbenchView`（react-arborist 文件树[ResizeObserver 测高] + CodeMirror 懒加载 + 内联新建文件[Electron 禁 prompt] + 保存显示快照 hash）
+- **验证**：typecheck 0 错 / vitest **132 全绿**（+4 workspace）/ 实机（三栏拖拽布局、新建 demo.py、编辑保存、git 快照链 e7e001a9→04c04807 磁盘核验）
+- **踩坑**：①workspace IPC handler 忘 await → data 是 Promise → structured clone 失败（渲染层无限「加载…」）②electron-vite dev 对 main 源码改动不总是热重启（改 main 后需手动重启 dev）③react-resizable-panels v4 是 Workspace/Tabset 全新 API，需钉 v2（PanelGroup/PanelResizeHandle 经典 API）
+
 ### P5.7 校对界面（✅ 2026-11-11 完成）
 
 - **校对页 `ReviewPage.tsx`**（学习页 header「课件校对」进入）：左列章节分组课件表（人审状态+校验双徽标+统计条）；右侧 = BlockRenderer 全量真渲染预览（**interactive 同沙箱=所见即所得**，quiz 走 QuizCard 可试答）+ validate 面板（error 红/warn 容量黄+重校验）+ 页码抽查（chips 与块角标 → OCR 对照抽屉：课件摘录↔ocr 原文，ocrFile 直读优先/bookPage 扫描自证/±1 邻页回查）+ **digest 定稿编辑器**（KP 课件）+ 状态流转（标记有效/批准/标记失败——failed 由主进程现跑校验写入错误清单；**有 error 禁批准**）
