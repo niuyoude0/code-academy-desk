@@ -1,7 +1,7 @@
 # Code Academy Desk — AI 交接文档
 
 > 写给下一个接手本项目的 AI。读完这一份即可获得全部上下文：项目是什么、怎么跑、架构为什么这样、每个文件干什么、接口长什么样、踩过哪些坑、接下来做什么。
-> 最后更新：2026-11-11（commit `1d87b35`）。运行日志式的历史见 `PROJECT_HANDOVER.md`（更细但按时间组织）。
+> 最后更新：2026-11-12（commit `4959ee9`；此后**未提交**改动：①「重新生成课件不更新左栏」bug 修复——cad_save_kp_lesson 成功后主进程推 `lesson:updated`，学习页自动刷新课件区（§3.2 / §6.1 / §12）②pen 画布新增「方案 D2 · ChatGPT 极简 + 终端」设计稿（§5.1））。运行日志式的历史见 `PROJECT_HANDOVER.md`（更细但按时间组织）。
 
 ---
 
@@ -93,6 +93,12 @@
 | D6 | 完成判定门 = quiz ≥2/3 且（含编程题时 Runner 判过）；应急门 forced 保留 | 本地判定零消耗 |
 | 2026-11-11 | **删除人工校对页** → 一键重新生成课件 | 用户拍板；质量前移到机检+自检 |
 | 2026-11-11 | 视觉 = IDEA Light 文档流（弃暗色卡片式） | 用户拍板；参考豆包阅读列排版 |
+| 2026-11-12 | 全功能实机验收通过（12/12 大项，零 AI 消耗），遗留 bug 清单入 §12 | 测试会话；CUA 自动化+截图检验 |
+| 2026-11-12 | **三栏信息架构修正**：左栏=课件正文、课程目录上移顶部工具栏、中栏=代码、右栏=AI 助教；15 版设计稿待选型（§5.1） | 用户拍板；理由：左栏应放学习内容而非目录树 |
+| 2026-11-12 | **题面放中栏代码区上方**（可收起题目卡，随编辑器共进退），课件正文只留「随堂编程入口卡」锚点 | 本轮问询拍板；理由：题面是任务上下文，须与解题处相邻；左栏阅读流不被任务打断（D2 帧已体现） |
+| 2026-11-12 | **课件落盘推送**：cad_save_kp_lesson 成功 → 主进程推 `lesson:updated` → 学习页自动刷新路径+当前课件并提示 | 修「生成过程只进右栏聊天、左栏课件区不更新」bug；生成过程仍走聊天流（D3 不变），只是结果不再等用户手动重选 |
+| 2026-11-12 | **学习页三栏为默认态**：sideTab 初始 `agent`（助教栏常驻），不再默认只出两栏等手点 | 用户拍板；与新 IA「助教=常驻右栏」同向 |
+| 2026-11-12 | **新 IA 代码落地（渲染层重排，数据管线零改动）**：LearningPathPage 重排为 TopNavBar + PanelGroup[左=StudyView 课件正文（coding 块改 CodingEntryCard 入口卡）| 中=CodeColumn（编程题 tab + 文件 tab + 终端风判定面板）| 右=AgentSidePanel 常驻]；autoSaveId 升 v2。中栏「终端」=一次性运行判定输出，真 REPL 终端需新增常驻进程 IPC（未做） | 用户连续反馈驱动（三栏默认→中栏代码编辑器呢）；typecheck 0 错 137/137 绿 |
 
 ### 3.3 课件生产数据流
 
@@ -184,9 +190,92 @@ code-academy-desk/
 | P8 | 统一 Runner：编程题判定 + **runScript 通用执行**（工作区运行按钮/输出面板） | ✅ 1d87b35 |
 | P9 | Agent 主干（DSH 单通道/权限档位/MCP 管理/设置） | ✅ |
 | P10 | 学习记录：索引真实进度聚合 + 首页进度条/继续学习排序 | ✅ 1d87b35 |
+| **UI-重构** | **三栏 IA 修正落地**：顶部目录工具栏 + 左=课件正文 + 中=代码 + 右=AI 助教；16 版设计稿已完成，**代码已按新 IA 落地**（2026-11-12：TopNavBar / CodeColumn / 左栏正文 / 右栏常驻，见 §9） | ✅ 代码落地 · 设计稿待 `design/` 入仓 |
 | P11 | 发布：vendor 裁剪（dsh-runtime ~1GB→按需）/代码签名/自动更新/SQLite 迁移（**需用户先装 VS Build Tools**） | ⬜ 未开始 |
 
-已验证基线：typecheck 0 错 · vitest **134/134** · 实机走查（三栏/文件工作区/Runner/沙箱/助教）通过。
+已验证基线：typecheck 0 错 · vitest **134/134** · **2026-11-12 全功能实机验收 12/12 大项通过**（首页进度/操作菜单、三栏工作台、17 类块渲染含 anim 播放、Runner 三路径含 stderr 诊断、文件工作区全链路 git 快照、侧栏助教真实 DSH 对话、全页 Agent 会话连续性 + MCP 管理、API Key 掩码不回显 + 三档权限、导入对话框、导出服务端单测 17/17 兜底 + 重新生成课件端到端走 skill v2.1 九工具链）。
+
+---
+
+### 5.1 UI 重设计：三栏信息架构修正 + 15 版设计稿（2026-11-12，🎨 待选型落地）
+
+**这是当前最高优先级的进行中工作**。设计稿全部画在 pen.dev 画布上，**不在 git 仓库内**——丢了这个路径就丢了两轮设计。
+
+#### 新信息架构（用户 2026-11-12 拍板，重构现行 P6 布局）
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 顶部工具栏 = 课程目录（现行 KP 列表栏上移至此）                        │
+│  [logo] 课程切换chip▾ · 第3章·列表与排序▾ · 3.2冒泡排序▾            │
+│  小节进度 ●●◐○○ · [上一节] [下一节] · 知识点2/5 · 主题特有按钮/头像   │
+├────────────┬──────────────────────────────┬──────────────────────┤
+│ 左栏 = 课程内容 │ 中栏 = 代码                    │ 右栏 = AI 助教          │
+│ （课件正文直排） │ 编辑器+运行判定面板               │ （完整对话列，           │
+│ 概念段落      │ （编程题 CodeMirror + 3/3 判定）  │  非 tabs 里的侧栏）      │
+│ 关键点callout │ 文件工作区/终端按版本融入中栏      │ 用户气泡/回复/修复代码块  │
+│ 示例代码      │ （tab 或下方面板 = 开放决策）      │ 应用到编辑器/建议 chips  │
+│ 随堂小测      │                              │ 底部输入框               │
+└────────────┴──────────────────────────────┴──────────────────────┘
+```
+
+与现状的差异：现行 `LearningPathPage.tsx` 是「KP 列表 | 阅读列 max-w-820 | 工作台侧栏 tabs[助教/文件]」——新 IA 把 KP 列表变成工具栏面包屑、阅读列收窄为左栏、助教从 tab 升级为常驻右栏、文件工作区并入中栏。
+
+#### 设计稿载体与画布布局
+
+画布：`C:\Users\35597\.pencil\documents\2f9e9707-1b55-452a-b172-f84eccdcaf92\pencil-new.pen`（pen.dev 编辑；所有帧 1440×900 桌面窗口）：
+
+| 画布区域 | 内容 |
+|---|---|
+| y=0 | 旧课程首页 2 版（暗色卡片风，已过时仅存档） |
+| (0,1000) 总览索引 + y=1180/2240 | **第一轮 A-E（已按新 IA 重建，帧名带"更新版"）** |
+| (0,3160) 总览索引 + y=3400/4460 | **第二轮 V1-V10** |
+
+**第一轮 A-E**（A(0,1180) B(1560,1180) C(3120,1180) D(0,2240) E(1560,2240)）：
+
+| 版 | 参考 | 目录形态（工具栏） | 一句话特色 |
+|---|---|---|---|
+| A | JetBrains IDEA 浅色 | 应用名+面包屑+蓝底当前节+进度点 | 工具栏含"重新生成课件"；运行面板内嵌逐测试行；错行黄色高亮 |
+| B | VS Code 深色 | 保留菜单栏+VS 式面包屑+分段进度 | 底部终端面板；聊天"提问/智能体"模式+`@main.py` 引用 |
+| C | Claude/Anthropic 暖纸 | serif wordmark+药丸面包屑+陶土当前节 | 衬线阅读栏 #FAF9F5+terracotta #D97757；思考过程折叠 chip |
+| D | ChatGPT 极简 | wordmark+轻面包屑+黑色药丸导航 | Canvas 代码卡（v2/撤销重做）；对话优先；圆角 24 输入框 |
+| E | Cursor 深紫 | 紧凑工具栏+紫色当前节+分段进度 | **内联 ⌘K 浮条**（紫光，浮在错行上）+Agent 工具链+红绿 diff 卡 |
+
+**第一轮补充：方案 D2 · ChatGPT 极简 + 终端**（2026-11-12 画在 **(3120,2240)**，与 D/E 同行，1440×900，画布内名「方案 D2 · ChatGPT 极简 + 终端」）：
+D 版基底（Inter + JetBrains Mono、墨色 #0D0D0D、#F4F4F4 chip、#10A37F 绿、圆角 24 输入框）+ 两处增量，同时体现本轮两个拍板：
+- **中栏底部终端面板**：暗底 #0D0D0D 圆角 12；头栏 tab「终端（active）/输出/判定 3/3」+ 绿色运行按钮 + 清屏/折叠；体部逐用例 ✓ 行 + 判定摘要行 + `$` 光标行——Runner 判定结果从「结果条」升级为完整终端叙事。
+- **题目卡在代码区上方**（可收起 chevron-up）：clipboard-list 图标 + 题面 + 要求 chips + 底部设计注「题面跟随编辑器共进退；课件侧只留入口卡」；左栏对应放「随堂编程入口卡」（去作答按钮锚到中栏题目卡）。
+- 生成→更新语义入画：左栏绿条「课件已重新生成 · 本栏已自动更新」+ 对话流系统事件行——对应同日 `lesson:updated` 推送修复（§3.2）。
+
+**第二轮 V1-V10**（行1 y=3400：x=0/1560/3120/4680/6240；行2 y=4460 同 x）：
+
+| 版 | 参考 | 目录形态 | 一句话特色 |
+|---|---|---|---|
+| V1 | Notion | **打开式目录下拉**（示范展开态） | 文档灰 hairline；下拉含章节内小节勾选/锁定态 |
+| V2 | Linear 暗色 | 面包屑+分段进度条 | 深灰蓝 #101013+紫 #5E6AD2；紧凑 12px |
+| V3 | Obsidian | 面包屑+进度点 | 暗紫 #A882FF；**反向链接**（3.1→3.2 知识关联） |
+| V4 | macOS 浅色 | 红绿灯+**分段控件条**（第二行） | 系统灰 #F5F5F7+蓝 #007AFF；iMessage 蓝气泡白字 |
+| V5 | Win11 Fluent | 资源管理器面包屑+**命令栏** | Mica #F3F3F3；三栏卡片化；命令栏含运行/AI 生成 |
+| V6 | Material 3 | 顶栏+**药丸标签条**（第二行） | tonal 紫 #6750A4/#EADDFF；full-round 控件；Roboto |
+| V7 | GitHub 浅色 | 仓库式面包屑+计数 chip（知识点2/5） | Note 卡；绿色主按钮 #1F883D；Tab 橙下划线 |
+| V8 | Arc 彩色 | **彩色 pill 小节条**（3.1-3.5） | 粉彩渐变内容栏；珊瑚 #E85D4A；渐变 logo |
+| V9 | Duolingo | **关卡步进条**（✓✓●○○+连接线） | Nunito 圆体；2px 粗边卡；3D 底边按钮；庆祝文案 |
+| V10 | freeCodeCamp | 课程路径 `/` 面包屑+步骤 2/5 chip | 海军蓝 #0A0A23+黄 #FFD43B；Monokai 代码；"运行测试" |
+
+15 版统一故事线：冒泡排序第 6 行比较符写反（> 应为 <）→ 左栏课件讲比较方向 → AI 助教诊断并给修复片段 → Runner 3/3 判定通过——覆盖「阅读→提问→修复→判定」完整学习闭环。
+
+#### 选型后的落地步骤（接手人照此执行）
+
+1. **用户从 15 版选 1-2 版**（推荐候选：V1 的目录下拉形态、V5 命令栏、V9 步进条、E 的 ⌘K）。
+2. **状态细化**（在画布上补帧）：章节下拉展开态、课件生成中、Runner 判定失败态、空课程、KP 解锁锁定态。
+3. **入仓**：pen `Export("html-tailwind")` 选中帧存 `design/` 目录（当前仓库无此目录）——设计稿必须在仓库留档。
+4. **代码重构**（只动渲染层，数据管线零改动）：
+   - `LearningPathPage.tsx` 重排：顶部工具栏 + PanelGroup 三栏（复用 react-resizable-panels @2）
+   - 新增 `TopNavBar.tsx`（课程/章节/小节导航：课程切换 IPC 复用 `course:list`、小节导航复用 `path:get` 的 KP 有序表；进度点数据源 progress.json）
+   - 新增 `LessonColumn.tsx`：左栏直排 `BlockRenderer`（复用 read chrome，去块壳边框、窄栏排版）
+   - 新增/改造 `CodeColumn.tsx`：编程题 CodeMirror + 运行面板（复用 `runner:run`）+ **文件工作区 tab**（复用 `FileWorkbenchView`——归宿是中栏 tab 还是下方面板，选型时定）
+   - `AgentSidePanel` 从 tabs 提升为常驻右栏（`agentChatStore` 单例机制不变）
+   - 主题：若选定非 IDEA 浅色，重写 `globals.css @theme` token，**同步改 `resources/interactive-bridge/bridge.css` 副本**（见坑 5/坑 14）
+5. **零 AI 消耗验证**：seed-render-smoke 课程走查新布局。
 
 ---
 
@@ -202,6 +291,7 @@ code-academy-desk/
 | `skill:list/get/readFile/install` | 渲→主 | 技能浏览（内置安装到 userData/skills，只装新不覆盖） |
 | `material:import/list/readFile/remove` | 渲→主 | book-prep-ocr 材料导入/读取 |
 | `agent:chat/abort/resume` | 渲→主 | DSH 会话一轮（流事件走 `agent:event` 推送） |
+| `lesson:updated` | 主→渲 | cad_save_kp_lesson 成功推送 {courseId,kpId}；学习页自动刷新路径+当前课件并弹提示（dshRuntime 观察会话事件，`parseLessonSaveCall` 可单测） |
 | `agent:settings:get/set` | 渲→主 | Key/模型/权限档位（值不回显渲染层） |
 | `mcp:list/add/update/remove` | 渲→主 | MCP 配置（变更→重启 DSH） |
 | `path:get` | 渲→主 | CoursePathView{path, progress} |
@@ -304,7 +394,7 @@ review.json                  旧版人审清单——已废弃，惰性文件不
 
 ## 9. 渲染层组件地图
 
-**页面**：`CourseHomePage`（IDEA 列表行+继续学习真实进度条）→ `LearningPathPage`（PanelGroup 三栏：KP 列表 | 阅读列 max-w-820 | 工作台侧栏 tabs[助教/文件]；完成判定门压平底栏）→ `AgentChatPage`（全页助教，与侧栏共用 store）。
+**页面**：`CourseHomePage`（IDEA 列表行+继续学习真实进度条）→ `LearningPathPage`（**2026-11-12 新 IA**：`TopNavBar`（KP 下拉+进度点+上一节/下一节+带确认的重新生成课件）+ PanelGroup 三栏——左=`StudyView` 课件正文（coding 块渲染 `CodingEntryCard` 入口卡，题目本体在中栏；完成判定门压平底栏）| 中=`CodeColumn`（编程题 ExercisePanel[题卡可折叠+CodeMirror+运行]+文件 tab 复用 `FileWorkbenchView`+终端风判定面板 `#1E1F22` mono）| 右=`AgentSidePanel` 常驻；autoSaveId `cad-workbench-v2`）→ `AgentChatPage`（全页助教，共用 store）。
 
 **块渲染管线**：`BlockRenderer`（22 类分派，chrome='read'|'review'）→ `BlockShell`（read=文档流+页边页码注记；review=轻容器）→ 各视图：`Md`（react-markdown 管线）/ `Katex` / `CodeView`(shiki) / `MermaidView` / `ChartView`(echarts 主题) / `AnimView`(motion+8 模板) / `ImageView` / `InteractiveBlockView`(沙箱宿主+心跳看门狗) / `CodingBlockView`(CodeMirror+Runner) / `QuizCard`。
 
@@ -328,7 +418,12 @@ review.json                  旧版人审清单——已废弃，惰性文件不
 12. dev 后台管道接 `head` 会 EPIPE → Electron 弹窗；后台跑 dev 用重定向文件别接管道。
 13. bash heredoc 传含 `\n` 的代码字符串会被吃转义——写文件用 python 显式 chr(92) 或分次 Edit。
 14. CodeMirror 主题切换：`@uiw/react-codemirror` 不传 theme 即默认浅色；one-dark 已卸载。
-15. CUA 实机操作（应用验收用）：视口外按钮点击被吞；AX 树 400 元素截断；frame 过期需重新截图。
+15. CUA 实机操作（应用验收用）：视口外按钮点击被吞；AX 树 400 元素截断；frame 过期需重新截图。坐标 `strategy:"event"` 点击比元素索引稳定（hover 态 DOM 突变会让索引失效）。
+16. **Windows IFileDialog 无法被 CUA 自动化确认**：导出课程包对话框 5 种注入方式（UIA click / setValue+click / Enter / Alt+S）全部令对话框以 cancel 收尾且无文件产出——这是 CUA 环境限制**非应用 bug**（渲染层对「已取消导出」静默是有意设计）；服务端 `exportCourseToZip` 有单测兜底，UI 层验收交给用户手点。
+17. **CodeMirror 键盘行为（CUA 环境）**：paste 合成事件被忽略、`shift+End` 等选区组合失效、`ctrl+a`/Delete/BackSpace/Return/typeText 正常；typeText 逐字键入会与 CodeMirror 自动缩进叠加产生多余行首空格（冒号行回车自动缩进+4）——**键入零缩进整行代码最稳**（实测 `print(*sorted(a), sep='\n')` 一次过）。
+18. **React 分栏（PanelGroup）滚轮无效**（CUA wheel 事件不进 React 合成流）——点击栏内正文取得焦点后发 `Next`（PageDown）键即可滚动。
+19. pen.dev 设计稿在本机 pen 桌面应用编辑；`execute` 片段里 JS 字符串内不能出现字面换行（SyntaxError 回滚全部操作）——空行用 `" "` 占位。
+20. **pen 大批量 Insert 后勿信 problems/bounds 求解器**：对刚建子树跑 `Get(bounds)`/problems 访问器会报幻影 50px 偏移与大面积 fully/partially clipped 误报（同一帧在建树调用里全部命中，单独重跑依旧；旧帧跑同款访问器是 0 问题）——真实布局以 `TakeScreenshot` 为准，别按误报返工。
 
 ---
 
@@ -342,7 +437,12 @@ review.json                  旧版人审清单——已废弃，惰性文件不
 
 ## 12. 下一步路线（按优先级）
 
-1. **P11 发布线**：vendor 裁剪（dsh-runtime 只留 win32 包+裁 node_modules，~1GB→目标 <300MB）→ electron-builder 签名/自动更新 → SQLite 迁移（**需用户先装 VS Build Tools**，better-sqlite3 编译）——迁移前 index/progress 均为 JSON 文件，量级无压力
-2. P7 后续：快照历史查看 UI（isomorphic-git log 已可用）
-3. 小项：课程移除时清理 workspace/files/<id>；skill 主循环 A 边界约束加强（AI 曾越出"到此为止"继续建课件）
-4. 已知平台缺口：本机无 gcc（c 档位装 MinGW-w64 后自动通）
+1. **三栏 IA 落地收尾**：代码重构 ✅（§3.2/§9）；剩余：①设计稿 `html-tailwind` 入仓 `design/` ②seed 课程零消耗走查新布局 ③真 REPL 终端（runner 只有一次性执行，交互终端需新增常驻进程 IPC——pty/子进程复用）④顶部下拉的展开态/生成中/判定失败/空课程状态帧画布补齐
+2. **P2/P3 快修（测试会话遗留，半小时内可清）**：
+   - ~~「重新生成课件」只进右栏聊天、左栏课件区不更新~~ **已修（2026-11-12，未提交）**：dshRuntime 观察 cad_save_kp_lesson 的 call/result 对，成功即推 `lesson:updated`；LearningPathPage 订阅后自动刷新路径+换入当前课件+生成中横幅/落盘提示；配套 3 个纯函数单测（dshRuntime.test.ts），全量 137/137 绿、typecheck 0 错
+   - [P2] 首页 header 设置/帮助按钮 onClick 为空（`CourseHomePage.tsx:126-139`）——设置按钮接 AgentSettingsModal，帮助按钮可接说明页或暂移除
+   - [P3] 「重新生成课件」无确认弹窗，误触即发起 DSH 生成消耗 token——加一层 confirm（本次修复未含，仍待做）
+3. **P11 发布线**：vendor 裁剪（dsh-runtime 只留 win32 包+裁 node_modules，~1GB→目标 <300MB）→ electron-builder 签名/自动更新 → SQLite 迁移（**需用户先装 VS Build Tools**，better-sqlite3 编译）——迁移前 index/progress 均为 JSON 文件，量级无压力
+4. P7 后续：快照历史查看 UI（isomorphic-git log 已可用；建议并入中栏「文件」tab，与 §5.1 重构一并做）
+5. 小项：课程移除时清理 workspace/files/<id>；skill 主循环 A 边界约束加强（AI 曾越出"到此为止"继续建课件）
+6. 已知平台缺口：本机无 gcc（c 档位装 MinGW-w64 后自动通）

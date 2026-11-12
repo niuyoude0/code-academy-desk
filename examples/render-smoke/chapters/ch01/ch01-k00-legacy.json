@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "2.0",
+  "lessonId": "ch01-k00-legacy",
+  "title": "遗留坏课（缺页码）",
+  "blocks": [
+    {
+      "id": "x1",
+      "type": "text",
+      "origin": "book",
+      "md": "这一块声明来自教材却没有页码引用——校验器应报 b1.source 铁律错误。"
+    }
+  ]
+}

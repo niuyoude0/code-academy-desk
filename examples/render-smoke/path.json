@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "2.0",
+  "courseId": "zz-render-smoke",
+  "updatedAt": "2026-11-10T23:32:56.051Z",
+  "kps": [
+    {
+      "id": "ch01-k01",
+      "chapterId": "ch01",
+      "title": "插入排序",
+      "bookPage": 80,
+      "interactivity": "strong",
+      "genStatus": "ready",
+      "lessonFile": "chapters/ch01/ch01-k01.json"
+    },
+    {
+      "id": "ch01-k02",
+      "chapterId": "ch01",
+      "title": "希尔排序（未生成）",
+      "bookPage": 88,
+      "interactivity": "medium",
+      "genStatus": "pending"
+    }
+  ]
+}

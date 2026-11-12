@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "2.0",
+  "id": "zz-render-smoke",
+  "title": "渲染验收种子课程",
+  "language": "mixed",
+  "description": "P5.5/P5.7 实机验收用（本地脚本生成，可随时删除）",
+  "createdAt": "2026-11-10T18:43:28.651Z",
+  "updatedAt": "2026-11-10T23:32:56.047Z",
+  "sourceRef": {
+    "materialId": "zz-material",
+    "factsheets": [],
+    "pageOffsets": []
+  },
+  "chapters": [
+    {
+      "id": "ch01",
+      "title": "第一章",
+      "lessons": [
+        {
+          "lessonId": "ch01-k01",
+          "title": "插入排序",
+          "file": "chapters/ch01/ch01-k01.json"
+        },
+        {
+          "lessonId": "ch01-k00-legacy",
+          "title": "遗留坏课（缺页码）",
+          "file": "chapters/ch01/ch01-k00-legacy.json"
+        }
+      ]
+    }
+  ]
+}
