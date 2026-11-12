@@ -1,37 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
-import {
-  ArrowLeft,
-  Bot,
-  Lock,
-  CircleDashed,
-  CircleCheck,
-  SkipForward,
-  Play,
-  RefreshCw,
-  AlertTriangle,
-  BookOpen,
-  Pencil,
-  RotateCcw,
-  RefreshCcwDot,
-  FolderCode,
-  X
-} from 'lucide-react'
+import { AlertTriangle, Bot, BookOpen, CircleCheck, CircleDashed, FileCode2 } from 'lucide-react'
 import type { CoursePathView } from '../../../shared/ipc'
 import type { PathEntry, ProgressFile } from '../../../shared/learning-path-schema'
 import type { LessonDocument, QuizBlock } from '../../../shared/lesson-schema'
 import { BlockRenderer } from './blocks/BlockRenderer'
 import { QuizCard, type QuizAnswerState } from './blocks/QuizCard'
 import { AgentSidePanel } from './AgentSidePanel'
-import { FileWorkbenchView } from './FileWorkbenchView'
-import { agentChatStore } from '../agentChatStore'
+import { CodeColumn, type CodeTab } from './CodeColumn'
+import { TopNavBar, type KpUiState, type TopNavKpRow } from './TopNavBar'
+import { agentChatStore, useAgentChat } from '../agentChatStore'
 
 /**
- * P5.4 学习路径页（知识点驱动，2026-11-10 用户六原则拍板）：
- *  - 左列：有序 KP 表（锁定/待生成/失败/就绪/学习中/已完成/已跳过 七态徽标）+ 按需生成触发
- *  - 右侧：学习视图（P5.5 起为 BlockRenderer 全量真渲染：markdown/KaTeX/shiki/mermaid/echarts/anim）
- *  - 完成判定门（D6）：quiz≥2/3 自动解锁下一知识点；含编程题走应急门（P5.8 接 Runner 后转正）
- *  - 生成课件的触发 = 拼固定提示词发给 AI 助教（流程固定，无对话框——D3 静默）
+ * P5.4 学习路径页（2026-11-12 新 IA 落地，渲染层重排、数据管线零改动）：
+ *  - 顶部工具栏 = 课程目录（TopNavBar：KP 下拉 + 进度点 + 上一节/下一节 + 重新生成课件带确认）
+ *  - 左栏 = 课件正文（BlockRenderer 全量直排；coding 块渲染为入口卡，题目本体在中栏）
+ *  - 中栏 = 代码（CodeColumn：编程题编辑器 + 文件工作区 + 终端风判定面板）
+ *  - 右栏 = AI 助教（AgentSidePanel 常驻，共享 agentChatStore 单例会话）
+ *  - 完成判定门（D6）：quiz≥2/3 自动解锁；含编程题时 Runner 判过（判定结果从中栏上抛）
+ *  - 生成触发 = 拼固定提示词直通助教（D3 静默）；落盘推送 lesson:updated 自动刷新课件区
  */
 
 function buildGenerationPrompt(courseId: string, kpId: string): string {
@@ -57,9 +44,6 @@ function buildSkeletonPrompt(courseId: string): string {
   ].join('\n')
 }
 
-/** KP 的学习态（渲染层本视图；判定/解锁规则本体在主进程服务）。 */
-type KpUiState = 'locked' | 'pending' | 'failed' | 'ready' | 'learning' | 'completed' | 'skipped'
-
 export function LearningPathPage({
   courseId,
   title,
@@ -69,7 +53,7 @@ export function LearningPathPage({
   courseId: string
   title: string
   onBack: () => void
-  /** 侧栏助教「去配置 Key」时跳转全页助教 */
+  /** 助教栏「去配置 Key」时跳转全页助教 */
   onOpenAgent: () => void
 }): React.JSX.Element {
   const [view, setView] = useState<CoursePathView | null>(null)
@@ -81,16 +65,29 @@ export function LearningPathPage({
   const [answers, setAnswers] = useState<Record<string, QuizAnswerState>>({})
   const [codingPassed, setCodingPassed] = useState(false)
   const [busy, setBusy] = useState(false)
-  // P6 三栏工作台：右侧「助教/文件」面板（可拖拽宽度，autoSaveId 持久化布局）
-  const [sideTab, setSideTab] = useState<'agent' | 'files' | null>(null)
+  // 中栏代码 tab（载入课件时按是否含编程题自动切换）
+  const [codeTab, setCodeTab] = useState<CodeTab>('exercise')
+  // 重新生成课件追踪：课件区显示「生成中」横幅，落盘推送到达后自动换新
+  const [regenKpId, setRegenKpId] = useState<string | null>(null)
+  const [updatedTip, setUpdatedTip] = useState<string | null>(null)
+  const { running: chatRunning } = useAgentChat()
 
-  /** 学习页内的助教入口：打开右侧助教栏 + 固定提示词直通（共享 DSH 会话，空闲即发/忙则挂起）。 */
+  /** 学习页内的助教入口：固定提示词直通右栏助教（共享 DSH 会话，空闲即发/忙则挂起）。 */
   const askAgent = useCallback(
     (prompt: string): void => {
-      setSideTab('agent')
       agentChatStore.requestPrompt(prompt)
     },
     []
+  )
+
+  /** 重新生成指定 KP 课件：确认（消耗 API 额度）→ 固定提示词直通 + 生成中横幅。 */
+  const regenerate = useCallback(
+    (kp: PathEntry): void => {
+      if (!window.confirm(`将让 AI 助教重新生成「${kp.title}」的课件，会消耗 API 额度。继续？`)) return
+      setRegenKpId(kp.id)
+      askAgent(buildGenerationPrompt(courseId, kp.id))
+    },
+    [askAgent, courseId]
   )
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -142,6 +139,12 @@ export function LearningPathPage({
     [kps, progressByKp]
   )
 
+  /** TopNavBar 的行数据（七态 + 锁定判定） */
+  const navRows = useMemo<TopNavKpRow[]>(
+    () => kps.map((kp) => ({ kp, state: stateOf(kp), unlocked: unlocked(kp.id) })),
+    [kps, stateOf, unlocked]
+  )
+
   const loadLesson = useCallback(
     async (kp: PathEntry): Promise<void> => {
       setSelectedKpId(kp.id)
@@ -150,8 +153,13 @@ export function LearningPathPage({
       setAnswers({})
       setCodingPassed(false)
       const res = await window.api.lessonGet(courseId, kp.chapterId, kp.id)
-      if (res.ok) setLesson(res.data)
-      else setLessonErr(res.error)
+      if (res.ok) {
+        setLesson(res.data)
+        const doc = res.data as LessonDocument | null
+        setCodeTab(doc?.blocks.some((b) => b.type === 'coding') ? 'exercise' : 'files')
+      } else {
+        setLessonErr(res.error)
+      }
     },
     [courseId]
   )
@@ -163,6 +171,34 @@ export function LearningPathPage({
     const target = kps.find((k) => k.id === cur) ?? kps[0]
     if (target != null && target.genStatus === 'ready') void loadLesson(target)
   }, [view, kps, selectedKpId, loadLesson])
+
+  // 课件落盘推送（2026-11-12 bug 修复）：cad_save_kp_lesson 成功 → 刷新路径 + 提示；
+  // 正在展示该 KP 则直接换入新课件——生成过程在聊天流可见，结果不再要求手动重选
+  useEffect(() => {
+    return window.api.onLessonUpdated(({ courseId: cid, kpId }) => {
+      if (cid !== courseId) return
+      void refresh()
+      setRegenKpId((cur) => (cur === kpId ? null : cur))
+      const isCurrent = kpId === selectedKpId
+      setUpdatedTip(isCurrent ? '课件已重新生成，本区域已自动更新' : `知识点「${kpId}」课件已生成`)
+      if (isCurrent) {
+        const kp = kps.find((k) => k.id === kpId)
+        if (kp != null) void loadLesson(kp)
+      }
+    })
+  }, [courseId, refresh, selectedKpId, kps, loadLesson])
+
+  // 助教空闲（本轮结束且无落盘推送）→ 撤掉生成中横幅
+  useEffect(() => {
+    if (!chatRunning) setRegenKpId(null)
+  }, [chatRunning])
+
+  // 落盘提示 4s 自动消退
+  useEffect(() => {
+    if (updatedTip == null) return
+    const t = window.setTimeout(() => setUpdatedTip(null), 4000)
+    return () => window.clearTimeout(t)
+  }, [updatedTip])
 
   const run = useCallback(
     async (fn: () => Promise<{ ok: boolean; error?: string }>): Promise<boolean> => {
@@ -186,12 +222,16 @@ export function LearningPathPage({
   const doc = lesson as LessonDocument | null
   const blocks = doc?.blocks ?? []
   const quizBlocks = blocks.filter((b): b is QuizBlock => b.type === 'quiz')
-  const hasCoding = blocks.some((b) => b.type === 'coding')
+  const exerciseIds = useMemo(
+    () => blocks.filter((b) => b.type === 'coding').map((b) => (b as { exerciseId: string }).exerciseId),
+    [blocks]
+  )
+  const hasCoding = exerciseIds.length > 0
   const answered = quizBlocks.filter((b) => answers[b.id]?.judged === true)
   const correct = answered.filter((b) => answers[b.id]?.correct === true).length
   const quizBest = quizBlocks.length > 0 ? `${correct}/${quizBlocks.length}` : undefined
   const ratio = quizBlocks.length > 0 ? correct / quizBlocks.length : 0
-  // D6 完成判定：quiz≥2/3 且（无编程题 或 编程 Runner 判定通过）——P5.8 起编程题不再强制走应急门
+  // D6 完成判定：quiz≥2/3 且（无编程题 或 编程 Runner 判定通过）
   const canComplete =
     quizBlocks.length > 0 && answered.length === quizBlocks.length && ratio >= 2 / 3 && (!hasCoding || codingPassed)
 
@@ -216,96 +256,26 @@ export function LearningPathPage({
     [run, courseId, selectedKp, quizBest, hasCoding, codingPassed]
   )
 
-  const stateBadge = (st: KpUiState): React.JSX.Element => {
-    const map: Record<KpUiState, { icon: React.JSX.Element; cls: string; label: string }> = {
-      locked: { icon: <Lock size={13} />, cls: 'text-tx2/50', label: '未解锁' },
-      pending: { icon: <CircleDashed size={13} className="text-warn" />, cls: 'text-warn', label: '待生成' },
-      failed: { icon: <AlertTriangle size={13} className="text-bad" />, cls: 'text-bad', label: '生成失败' },
-      ready: { icon: <BookOpen size={13} className="text-ok" />, cls: 'text-ok', label: '课件就绪' },
-      learning: { icon: <Play size={13} className="text-acc" />, cls: 'text-acc', label: '学习中' },
-      completed: { icon: <CircleCheck size={13} className="text-ok" />, cls: 'text-ok', label: '已完成' },
-      skipped: { icon: <SkipForward size={13} className="text-tx2" />, cls: 'text-tx2', label: '已跳过' }
-    }
-    const s = map[st]
-    return (
-      <span className={`inline-flex items-center gap-1 text-[11.5px] font-medium ${s.cls}`}>
-        {s.icon}
-        {s.label}
-      </span>
-    )
-  }
-
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-panel px-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <button
-            type="button"
-            aria-label="返回"
-            onClick={onBack}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-tx2 hover:bg-panel-hover"
-          >
-            <ArrowLeft size={16} />
-          </button>
-          <span className="truncate text-[14px] font-semibold text-tx">{title}</span>
-          <span className="text-[12px] text-tx2">学习路径</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            disabled={selectedKpId == null}
-            title={selectedKpId == null ? '先在左侧选择一个知识点' : '按技能要求让 AI 助教重新生成当前知识点课件'}
-            onClick={() => askAgent(buildGenerationPrompt(courseId, selectedKpId ?? ''))}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] text-tx hover:bg-panel-hover disabled:opacity-40"
-          >
-            <RefreshCcwDot size={14} className="text-tx2" /> 重新生成课件
-          </button>
-          <button
-            type="button"
-            title="右侧工作台：AI 助教（与全页助教共用会话）"
-            onClick={() => setSideTab((t) => (t === 'agent' ? null : 'agent'))}
-            className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] ${
-              sideTab === 'agent' ? 'bg-acc/10 text-acc' : 'text-tx hover:bg-panel-hover'
-            }`}
-          >
-            <Bot size={14} /> 助教
-          </button>
-          <button
-            type="button"
-            title="右侧工作台：文件工作区（课程沙盒 + git 快照）"
-            onClick={() => setSideTab((t) => (t === 'files' ? null : 'files'))}
-            className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] ${
-              sideTab === 'files' ? 'bg-acc/10 text-acc' : 'text-tx hover:bg-panel-hover'
-            }`}
-          >
-            <FolderCode size={14} /> 文件
-          </button>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] text-tx2 hover:bg-panel-hover"
-          >
-            <RefreshCw size={14} /> 刷新
-          </button>
-          <button
-            type="button"
-            onClick={() => askAgent(`查看课程「${courseId}」的学习进度（cad_get_path 与 cad_get_progress），并简要总结当前学习状态。`)}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] text-tx hover:bg-panel-hover"
-          >
-            <Bot size={14} className="text-tx2" /> 问助教
-          </button>
-        </div>
-      </header>
+      <TopNavBar
+        courseTitle={title}
+        rows={navRows}
+        selectedKpId={selectedKpId}
+        regenBusy={regenKpId != null && chatRunning}
+        onSelect={(kp): void => void loadLesson(kp)}
+        onBack={onBack}
+        onRegenerate={(): void => {
+          if (selectedKp != null) regenerate(selectedKp)
+        }}
+        onRefresh={(): void => void refresh()}
+      />
 
       {loadErr != null && (
-        <div className="mx-4 mt-3 rounded-md bg-bad/10 px-3 py-2 text-[12.5px] text-bad">
-          {loadErr}
-        </div>
+        <div className="mx-4 mt-3 rounded-md bg-bad/10 px-3 py-2 text-[12.5px] text-bad">{loadErr}</div>
       )}
       {actionErr != null && (
-        <div className="mx-4 mt-3 rounded-md bg-bad/10 px-3 py-2 text-[12.5px] text-bad">
-          {actionErr}
-        </div>
+        <div className="mx-4 mt-3 rounded-md bg-bad/10 px-3 py-2 text-[12.5px] text-bad">{actionErr}</div>
       )}
 
       {view?.path == null ? (
@@ -327,196 +297,106 @@ export function LearningPathPage({
         </div>
       ) : (
         <div className="min-h-0 flex-1">
-          <PanelGroup direction="horizontal" autoSaveId="cad-workbench-v1" className="h-full">
-            {/* 左列：KP 列表（IDEA 树式扁平行，无行分隔线；可拖拽宽度） */}
-            <Panel defaultSize={23} minSize={13} maxSize={40}>
-              <div className="flex h-full flex-col overflow-y-auto border-r border-line bg-panel py-2">
-                {kps.map((kp, i) => {
-                  const st = stateOf(kp)
-                  const isUnlocked = unlocked(kp.id)
-                  const shown: KpUiState = isUnlocked || st === 'completed' || st === 'skipped' || st === 'learning' ? st : 'locked'
-                  const selected = kp.id === selectedKpId
-                  return (
-                    <div
-                      key={kp.id}
-                      className={`mx-2 flex flex-col gap-1.5 rounded-md px-2.5 py-2.5 ${selected ? 'bg-acc/10' : 'hover:bg-panel-hover'}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-[10.5px] text-tx2/70">{String(i + 1).padStart(2, '0')}</span>
-                            <span className="truncate text-[13px] font-medium text-tx">{kp.title}</span>
+          <PanelGroup direction="horizontal" autoSaveId="cad-workbench-v2" className="h-full">
+            {/* 左栏：课件正文（豆包式文档流直排 + 压平完成判定门） */}
+            <Panel defaultSize={34} minSize={24} maxSize={46}>
+              <div className="flex h-full min-h-0 flex-col">
+                {regenKpId != null && regenKpId === selectedKpId && chatRunning && (
+                  <div className="flex shrink-0 items-center gap-2 border-b border-line bg-acc/5 px-4 py-2 text-[12px] text-acc">
+                    <CircleDashed size={13} className="animate-spin" />
+                    AI 正在重新生成本节课件，完成后此栏自动更新（生成过程见右栏）
+                  </div>
+                )}
+                {selectedKp == null || doc == null ? (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                    {lessonErr != null ? (
+                      <>
+                        <AlertTriangle size={26} className="text-warn" />
+                        <div className="text-[12.5px] text-tx2">{lessonErr}</div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedKp != null) regenerate(selectedKp)
+                          }}
+                          className="mt-1 flex h-8 items-center gap-1.5 rounded-md border border-acc/60 px-3 text-[12.5px] text-acc hover:bg-panel-hover"
+                        >
+                          重新生成课件
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <BookOpen size={30} className="text-tx2/50" strokeWidth={1.4} />
+                        <div className="text-[12.5px] text-tx2">从顶部小节下拉选择一个知识点开始学习</div>
+                        {view.progress.currentKpId != null && (
+                          <div className="text-[11.5px] text-tx2/70">
+                            当前进度位：
+                            {kps.find((k) => k.id === view.progress.currentKpId)?.title ?? view.progress.currentKpId}
                           </div>
-                          <div className="mt-0.5 flex items-center gap-2">
-                            {stateBadge(shown)}
-                            {kp.bookPage != null && <span className="text-[11px] text-tx2/70">书内 p.{kp.bookPage}</span>}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {(shown === 'pending' || shown === 'failed') && isUnlocked && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => askAgent(buildGenerationPrompt(courseId, kp.id))}
-                            className="flex h-7 items-center gap-1.5 rounded border border-acc/60 px-2 text-[12px] text-acc hover:bg-panel-hover disabled:opacity-50"
-                          >
-                            <Bot size={12} /> {shown === 'failed' ? '重试生成' : '生成课件'}
-                          </button>
                         )}
-                        {(shown === 'ready' || shown === 'learning') && (
-                          <button
-                            type="button"
-                            onClick={() => void loadLesson(kp)}
-                            className="flex h-7 items-center gap-1.5 rounded bg-acc px-2 text-[12px] font-medium text-white hover:bg-acc-hover"
-                          >
-                            <Play size={12} /> {shown === 'learning' ? '继续学习' : '开始学习'}
-                          </button>
-                        )}
-                        {shown === 'completed' && (
-                          <button
-                            type="button"
-                            onClick={() => void loadLesson(kp)}
-                            className="flex h-7 items-center gap-1.5 rounded border border-line px-2 text-[12px] text-tx2 hover:bg-panel-hover"
-                          >
-                            <RotateCcw size={12} /> 回顾
-                          </button>
-                        )}
-                        {shown === 'skipped' && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void run(() => window.api.kpStart(courseId, kp.id))}
-                            className="flex h-7 items-center gap-1.5 rounded border border-line px-2 text-[12px] text-tx2 hover:bg-panel-hover disabled:opacity-50"
-                          >
-                            <Play size={12} /> 重新学
-                          </button>
-                        )}
-                        {isUnlocked && shown !== 'completed' && shown !== 'skipped' && shown !== 'locked' && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void run(() => window.api.kpSkip(courseId, kp.id))}
-                            className="flex h-7 items-center gap-1.5 rounded border border-line px-2 text-[12px] text-tx2 hover:bg-panel-hover disabled:opacity-50"
-                          >
-                            <SkipForward size={12} /> 跳过
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <StudyView
+                    kp={selectedKp}
+                    progress={selectedProgress}
+                    blocks={blocks}
+                    answers={answers}
+                    setAnswers={setAnswers}
+                    quizSummary={{ total: quizBlocks.length, correct, answered: answered.length }}
+                    hasCoding={hasCoding}
+                    codingPassed={codingPassed}
+                    canComplete={canComplete}
+                    ratio={ratio}
+                    busy={busy}
+                    onComplete={doComplete}
+                    onAskAgent={askAgent}
+                    onOpenExercise={(): void => setCodeTab('exercise')}
+                    courseId={courseId}
+                  />
+                )}
               </div>
             </Panel>
 
             <PanelResizeHandle className="w-px bg-transparent transition-colors hover:bg-acc/40 data-[resize-handle-active]:bg-acc/40" />
 
-            {/* 中列：学习视图（豆包式居中阅读列 + 压平的完成判定门） */}
-            <Panel minSize={30}>
-              <div className="flex h-full min-h-0 flex-col">
-            {selectedKp == null || doc == null ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-                {lessonErr != null ? (
-                  <>
-                    <AlertTriangle size={28} className="text-warn" />
-                    <div className="text-[13px] text-tx2">{lessonErr}</div>
-                    <button
-                      type="button"
-                      onClick={() => askAgent(buildGenerationPrompt(courseId, selectedKp?.id ?? ''))}
-                      className="mt-1 flex h-8 items-center gap-1.5 rounded-md border border-acc/60 px-3 text-[13px] text-acc hover:bg-panel-hover"
-                    >
-                      <Pencil size={13} /> 重新生成课件
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <BookOpen size={32} className="text-tx2/50" strokeWidth={1.4} />
-                    <div className="text-[13px] text-tx2">从左侧选择一个知识点开始学习</div>
-                    {view.progress.currentKpId != null && (
-                      <div className="text-[12px] text-tx2/70">
-                        当前进度位：
-                        {kps.find((k) => k.id === view.progress.currentKpId)?.title ?? view.progress.currentKpId}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            ) : (
-              <StudyView
-                kp={selectedKp}
-                progress={selectedProgress}
-                blocks={blocks}
-                answers={answers}
-                setAnswers={setAnswers}
-                quizSummary={{ total: quizBlocks.length, correct, answered: answered.length }}
-                hasCoding={hasCoding}
-                codingPassed={codingPassed}
-                onCodingPassed={(): void => setCodingPassed(true)}
-                canComplete={canComplete}
-                ratio={ratio}
-                busy={busy}
-                onComplete={doComplete}
-                onAskAgent={askAgent}
+            {/* 中栏：代码（编程题编辑器 / 文件工作区 + 终端风判定面板） */}
+            <Panel minSize={24}>
+              <CodeColumn
                 courseId={courseId}
+                tab={codeTab}
+                onTabChange={setCodeTab}
+                exerciseIds={exerciseIds}
+                codingPassed={codingPassed}
+                onPassed={(): void => setCodingPassed(true)}
+                onAskAgent={askAgent}
+                hasLesson={doc != null}
               />
-            )}
-              </div>
             </Panel>
 
-            {/* 右栏：工作台（AI 助教 / 文件工作区，可拖拽宽度，autoSaveId 持久化） */}
-            {sideTab != null && (
-              <>
-                <PanelResizeHandle className="w-px bg-transparent transition-colors hover:bg-acc/40 data-[resize-handle-active]:bg-acc/40" />
-                <Panel defaultSize={32} minSize={20} maxSize={60}>
-                  <div className="flex h-full flex-col border-l border-line bg-panel">
-                    <div className="flex h-8 shrink-0 items-center gap-1 border-b border-line px-2">
-                      <button
-                        type="button"
-                        onClick={() => setSideTab('agent')}
-                        className={`flex h-6 items-center gap-1 rounded px-2 text-[11.5px] ${
-                          sideTab === 'agent' ? 'bg-acc/10 font-medium text-acc' : 'text-tx2 hover:bg-panel-hover'
-                        }`}
-                      >
-                        <Bot size={12} /> 助教
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSideTab('files')}
-                        className={`flex h-6 items-center gap-1 rounded px-2 text-[11.5px] ${
-                          sideTab === 'files' ? 'bg-acc/10 font-medium text-acc' : 'text-tx2 hover:bg-panel-hover'
-                        }`}
-                      >
-                        <FolderCode size={12} /> 文件
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="关闭工作台"
-                        title="关闭工作台"
-                        onClick={() => setSideTab(null)}
-                        className="ml-auto flex h-6 w-6 items-center justify-center rounded text-tx2 hover:bg-panel-hover"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                    <div className="min-h-0 flex-1">
-                      {sideTab === 'agent' ? (
-                        <AgentSidePanel onOpenFull={onOpenAgent} />
-                      ) : (
-                        <FileWorkbenchView courseId={courseId} />
-                      )}
-                    </div>
-                  </div>
-                </Panel>
-              </>
-            )}
+            <PanelResizeHandle className="w-px bg-transparent transition-colors hover:bg-acc/40 data-[resize-handle-active]:bg-acc/40" />
+
+            {/* 右栏：AI 助教（常驻，共享 DSH 会话） */}
+            <Panel defaultSize={26} minSize={18} maxSize={40}>
+              <div className="flex h-full flex-col border-l border-line bg-panel">
+                <AgentSidePanel onOpenFull={onOpenAgent} />
+              </div>
+            </Panel>
           </PanelGroup>
+        </div>
+      )}
+
+      {/* 课件落盘提示（cad_save_kp_lesson 成功推送；4s 自动消退） */}
+      {updatedTip != null && (
+        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-1.5 rounded-md bg-ok/10 px-4 py-2 text-[13px] font-medium text-ok shadow-sm">
+          <CircleCheck size={14} /> {updatedTip}
         </div>
       )}
     </div>
   )
 }
 
-/* ===== 学习视图（P5.5：BlockRenderer 全量真渲染 + quiz 交互卡） ===== */
+/* ===== 左栏学习视图（BlockRenderer 全量真渲染 + quiz 交互卡 + 编程题入口卡） ===== */
 
 function StudyView({
   kp,
@@ -527,12 +407,12 @@ function StudyView({
   quizSummary,
   hasCoding,
   codingPassed,
-  onCodingPassed,
   canComplete,
   ratio,
   busy,
   onComplete,
   onAskAgent: askAgent,
+  onOpenExercise,
   courseId
 }: {
   kp: PathEntry
@@ -543,29 +423,29 @@ function StudyView({
   quizSummary: { total: number; correct: number; answered: number }
   hasCoding: boolean
   codingPassed: boolean
-  onCodingPassed: () => void
   canComplete: boolean
   ratio: number
   busy: boolean
   onComplete: (forced: boolean) => Promise<void>
   onAskAgent: (prompt: string) => void
+  /** 打开中栏编程题 tab（coding 块入口卡） */
+  onOpenExercise: () => void
   courseId: string
 }): React.JSX.Element {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* 阅读列（豆包式：居中 max-w、白底文档流、块间距放大） */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[820px] px-14 py-10">
+        <div className="w-full px-5 py-6">
           <div className="flex items-baseline justify-between gap-3">
-            <h1 className="text-[22px] font-bold tracking-tight text-tx">{kp.title}</h1>
-            <span className="shrink-0 font-mono text-[11px] text-tx2/50">{kp.id}</span>
+            <h1 className="text-[19px] font-bold tracking-tight text-tx">{kp.title}</h1>
+            <span className="shrink-0 font-mono text-[10.5px] text-tx2/50">{kp.id}</span>
           </div>
           {progress?.state === 'completed' && (
-            <div className="mt-4 rounded-md bg-ok/10 px-3 py-2 text-[12.5px] text-ok">
+            <div className="mt-3 rounded-md bg-ok/10 px-3 py-2 text-[12px] text-ok">
               已完成{progress.forced ? '（应急通过）' : ''} · 最近判定 {progress.quizBest ?? '—'} —— 当前是回溯回顾
             </div>
           )}
-          <div className="mt-8 flex flex-col gap-7">
+          <div className="mt-6 flex flex-col gap-6">
             {blocks.map((b) =>
               b.type === 'quiz' ? (
                 <QuizCard
@@ -577,39 +457,42 @@ function StudyView({
                     setAnswers((prev) => ({ ...prev, [b.id]: { ...(prev[b.id] as QuizAnswerState), judged: true, correct } }))
                   }
                 />
-              ) : (
-                <BlockRenderer
+              ) : b.type === 'coding' ? (
+                <CodingEntryCard
                   key={b.id}
-                  block={b}
                   courseId={courseId}
+                  exerciseId={(b as { exerciseId: string }).exerciseId}
+                  passed={codingPassed}
+                  onOpen={onOpenExercise}
                   onAskAgent={askAgent}
-                  onCodingPassed={b.type === 'coding' ? onCodingPassed : undefined}
                 />
+              ) : (
+                <BlockRenderer key={b.id} block={b} courseId={courseId} onAskAgent={askAgent} />
               )
             )}
           </div>
         </div>
       </div>
 
-      {/* 完成判定门（D6）：压平为底栏（分隔线 + 白底，无卡片无投影） */}
+      {/* 完成判定门（D6）：压平底栏 */}
       {progress?.state !== 'completed' && progress?.state !== 'skipped' && quizSummary.total > 0 && (
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line bg-bg px-12 py-2.5">
-          <div className="text-[12.5px] text-tx2">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-t border-line bg-bg px-4 py-2.5">
+          <div className="text-[12px] text-tx2">
             判定 <span className="font-mono font-semibold text-tx">{quizSummary.correct}/{quizSummary.total}</span>
             （已答 {quizSummary.answered}/{quizSummary.total}）· 达标线 2/3
             {hasCoding &&
               (codingPassed ? (
                 <span className="ml-1 text-ok">· 编程题已通过</span>
               ) : (
-                <span className="ml-1 text-warn">· 本课件含编程题：运行判定通过后可正常完成</span>
+                <span className="ml-1 text-warn">· 含编程题：中栏判定通过后可正常完成</span>
               ))}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               disabled={busy || !canComplete}
               onClick={() => void onComplete(false)}
-              className="flex h-8 items-center gap-1.5 rounded-md bg-acc px-3.5 text-[13px] font-medium text-white hover:bg-acc-hover disabled:opacity-40"
+              className="flex h-8 items-center gap-1.5 rounded-md bg-acc px-3.5 text-[12.5px] font-medium text-white hover:bg-acc-hover disabled:opacity-40"
             >
               <CircleCheck size={14} /> 完成判定
             </button>
@@ -618,7 +501,7 @@ function StudyView({
                 type="button"
                 disabled={busy || quizSummary.answered < quizSummary.total}
                 onClick={() => void onComplete(true)}
-                className="flex h-8 items-center gap-1.5 rounded-md border border-warn/60 px-3 text-[13px] text-warn hover:bg-panel-hover disabled:opacity-40"
+                className="flex h-8 items-center gap-1.5 rounded-md border border-warn/60 px-3 text-[12.5px] text-warn hover:bg-panel-hover disabled:opacity-40"
               >
                 <AlertTriangle size={13} /> 应急完成
               </button>
@@ -630,13 +513,57 @@ function StudyView({
                   `我在课程「${courseId}」的知识点「${kp.id}（${kp.title}）」判定未达标。请按技能要求帮我重讲这个知识点的薄弱处（依据 quiz 易错点），并视需要重新生成更好的课件。`
                 )
               }
-              className="flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] text-tx2 hover:bg-panel-hover"
+              className="flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] text-tx2 hover:bg-panel-hover"
             >
               <Bot size={13} /> 问助教
             </button>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** 编程题入口卡（左栏）：题面/编辑器/判定都在中栏——题目随编辑器共进退（2026-11-12 拍板）。 */
+function CodingEntryCard({
+  courseId,
+  exerciseId,
+  passed,
+  onOpen,
+  onAskAgent
+}: {
+  courseId: string
+  exerciseId: string
+  passed: boolean
+  onOpen: () => void
+  onAskAgent: (prompt: string) => void
+}): React.JSX.Element {
+  return (
+    <div className="rounded-lg border border-line bg-panel px-3.5 py-3">
+      <div className="flex items-center gap-2">
+        <FileCode2 size={15} className="shrink-0 text-acc" />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-tx">随堂编程 · {exerciseId}</span>
+        {passed && <span className="shrink-0 text-[12px] font-medium text-ok">已通过 ✓</span>}
+      </div>
+      <div className="mt-1 text-[12px] text-tx2">题面、编辑器与判定面板在中间代码栏，随编辑器共进退。</div>
+      <div className="mt-2.5 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex h-7 items-center gap-1.5 rounded bg-acc px-2.5 text-[12px] font-medium text-white hover:bg-acc-hover"
+        >
+          去作答
+        </button>
+        <button
+          type="button"
+          onClick={(): void =>
+            onAskAgent(`请给课程「${courseId}」练习 ${exerciseId} 一点解题思路提示（循序渐进，不要直接给完整答案）。`)
+          }
+          className="flex h-7 items-center rounded border border-line px-2.5 text-[12px] text-tx2 hover:bg-panel-hover"
+        >
+          要提示
+        </button>
+      </div>
     </div>
   )
 }
