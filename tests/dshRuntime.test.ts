@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   extractJsonFrames,
-  mapSessionEvent
+  mapSessionEvent,
+  parseLessonSaveCall,
+  lessonSaveResultCallId
 } from '../src/main/services/dshRuntime'
 import {
   decodeConsoleOutput,
@@ -99,6 +101,30 @@ describe('DSH 会话事件映射（结构取自实测会话日志）', () => {
   it('未知事件类型不产生事件', () => {
     expect(mapSessionEvent({ type: 'session/title', data: {} })).toEqual([])
     expect(mapSessionEvent({})).toEqual([])
+  })
+})
+
+describe('cad_save_kp_lesson 落盘观察（lesson:updated 推送的数据源）', () => {
+  it('call 参数合法 → 解析出 courseId/kpId（lessonId 即 KP id）', () => {
+    const args = JSON.stringify({
+      courseId: 'java-2-practical-7e',
+      lesson: { schemaVersion: '2.0', lessonId: 'ch03-k02', blocks: [] }
+    })
+    expect(parseLessonSaveCall(args)).toEqual({ courseId: 'java-2-practical-7e', kpId: 'ch03-k02' })
+  })
+
+  it('参数缺 lessonId / courseId / 非 JSON → null（聊天流照常，不阻塞生成）', () => {
+    expect(parseLessonSaveCall(undefined)).toBeNull()
+    expect(parseLessonSaveCall('not-json')).toBeNull()
+    expect(parseLessonSaveCall(JSON.stringify({ courseId: 'c1' }))).toBeNull()
+    expect(parseLessonSaveCall(JSON.stringify({ lesson: { lessonId: 'k1' } }))).toBeNull()
+    expect(parseLessonSaveCall(JSON.stringify({ courseId: '', lesson: { lessonId: 'k1' } }))).toBeNull()
+  })
+
+  it('result 事件取 callId：message.toolCallId 优先、data.callId 兜底', () => {
+    expect(lessonSaveResultCallId({ type: 'tool/result', data: { message: { toolCallId: 'call_A' } } })).toBe('call_A')
+    expect(lessonSaveResultCallId({ type: 'tool/result', data: { callId: 'call_B' } })).toBe('call_B')
+    expect(lessonSaveResultCallId({ type: 'tool/result' })).toBe('')
   })
 })
 

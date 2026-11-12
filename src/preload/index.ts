@@ -10,6 +10,7 @@ import type {
   AgentSettingsPatch,
   AgentSettingsView,
   AgentStreamEvent,
+  LessonUpdatedPayload,
   McpServerEntry,
   KpCompleteInput,
   CoursePathView,
@@ -105,6 +106,11 @@ const api: DesktopApi = {
       listener(payload)
     ipcRenderer.on(IpcChannel.AgentEvent, handler)
     return () => ipcRenderer.removeListener(IpcChannel.AgentEvent, handler)
+  },
+  onLessonUpdated: (listener: (payload: LessonUpdatedPayload) => void): (() => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, payload: LessonUpdatedPayload): void => listener(payload)
+    ipcRenderer.on(IpcChannel.LessonUpdated, handler)
+    return () => ipcRenderer.removeListener(IpcChannel.LessonUpdated, handler)
   }
 }
 

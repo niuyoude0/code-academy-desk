@@ -25,6 +25,7 @@ export const IpcChannel = {
   AgentSettingsGet: 'agent:settings:get',
   AgentSettingsSet: 'agent:settings:set',
   AgentEvent: 'agent:event',
+  LessonUpdated: 'lesson:updated',
   McpList: 'mcp:list',
   McpAdd: 'mcp:add',
   McpUpdate: 'mcp:update',
@@ -99,6 +100,17 @@ export type AgentStreamEvent =
   | { type: 'finish'; finishReason: string }
   | { type: 'aborted' }
   | { type: 'error'; message: string }
+
+/**
+ * 主进程 → 渲染层的课件落盘通知（经 LessonUpdated 通道）。
+ * DSH 进程内 course-tools 的 cad_save_kp_lesson 成功后，由 dshRuntime 观察会话事件推送——
+ * 学习页据此自动刷新课件区，而不是等用户手动重选知识点（生成过程仍在聊天流里可见）。
+ */
+export interface LessonUpdatedPayload {
+  courseId: string
+  /** = 课件 lessonId（KP id） */
+  kpId: string
+}
 
 /** 权限档位（DSH DSH_PERMISSION_MODE 预设，沙箱+审批联动）。 */
 export type PermissionMode = 'read-only' | 'workspace-write' | 'danger-full-access'
@@ -285,4 +297,6 @@ export interface DesktopApi {
   }): Promise<IpcResult<unknown>>
   /** 订阅 Agent 流事件；返回取消订阅函数。 */
   onAgentEvent(listener: (payload: { runId: string; event: AgentStreamEvent }) => void): () => void
+  /** 订阅课件落盘通知（cad_save_kp_lesson 成功）；返回取消订阅函数。 */
+  onLessonUpdated(listener: (payload: LessonUpdatedPayload) => void): () => void
 }

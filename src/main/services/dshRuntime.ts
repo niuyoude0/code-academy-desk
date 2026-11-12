@@ -3,7 +3,7 @@ import { existsSync, symlinkSync, writeFileSync, mkdirSync } from 'fs'
 import { randomUUID } from 'crypto'
 import path from 'path'
 import { dialog, type BrowserWindow, type WebContents } from 'electron'
-import type { AgentStreamEvent } from '../../shared/ipc'
+import type { AgentStreamEvent, LessonUpdatedPayload } from '../../shared/ipc'
 import { IpcChannel } from '../../shared/ipc'
 import { readAgentSettings, AgentSettingsError } from './agentSettings'
 import { ShellError } from './shell'
@@ -162,6 +162,28 @@ export function mapSessionEvent(event: DshSessionEvent): AgentStreamEvent[] {
   return out
 }
 
+/**
+ * 从 cad_save_kp_lesson 的 tool/call 参数解析课件落盘位（courseId/kpId）。
+ * 解析失败或字段不合法 → null（聊天流照常，渲染层兜底走既有轮询）。
+ */
+export function parseLessonSaveCall(rawArguments: string | undefined): LessonUpdatedPayload | null {
+  if (rawArguments == null) return null
+  try {
+    const args = JSON.parse(rawArguments) as { courseId?: unknown; lesson?: { lessonId?: unknown } }
+    const courseId = typeof args.courseId === 'string' ? args.courseId : ''
+    const kpId = typeof args.lesson?.lessonId === 'string' ? args.lesson.lessonId : ''
+    if (courseId.length === 0 || kpId.length === 0) return null
+    return { courseId, kpId }
+  } catch {
+    return null
+  }
+}
+
+/** tool/result 是否携带有效 callId（配对 pendingSaves 用；isError 在调用侧判断）。 */
+export function lessonSaveResultCallId(event: DshSessionEvent): string {
+  return event.data?.message?.toolCallId ?? event.data?.callId ?? ''
+}
+
 /* ===== 运行时管理 ===== */
 
 export interface DshRuntimePaths {
@@ -235,6 +257,8 @@ export function createDshRuntime(opts: DshRuntimeOptions): {
   let buf = ''
   const pending = new Map<number, PendingRequest>()
   const activeRuns = new Map<string, { sender: WebContents; sessionId: string }>()
+  // cad_save_kp_lesson 的 call→result 配对（跨事件帧；result 到达即清理）
+  const pendingSaves = new Map<string, LessonUpdatedPayload & { sessionId: string }>()
   let nextId = 1
 
   const emit = (runId: string, run: { sender: WebContents }, event: AgentStreamEvent): void => {
@@ -258,6 +282,7 @@ export function createDshRuntime(opts: DshRuntimeOptions): {
     initialized = false
     booting = null
     buf = ''
+    pendingSaves.clear()
     for (const [, p] of pending) {
       clearTimeout(p.timer)
       p.reject(new DshError(`DSH 运行时已停止（${reason}）`))
@@ -306,6 +331,27 @@ export function createDshRuntime(opts: DshRuntimeOptions): {
       // 通知帧
       if (method === 'session.event') {
         const { sessionId, event } = frame['params'] as { sessionId: string; event: DshSessionEvent }
+        // 课件落盘观察（2026-11-12 bug 修复）：cad_save_kp_lesson 成功 → 推 lesson:updated，
+        // 学习页据此自动刷新课件区——生成过程仍在聊天流，但结果不再要求用户手动重选知识点
+        if (event.type === 'tool/call' && event.data?.name === 'cad_save_kp_lesson') {
+          const payload = parseLessonSaveCall(event.data.arguments)
+          const callId = event.data.callId ?? ''
+          if (payload != null && callId.length > 0) pendingSaves.set(callId, { ...payload, sessionId })
+        } else if (event.type === 'tool/result') {
+          const callId = lessonSaveResultCallId(event)
+          const saved = pendingSaves.get(callId)
+          if (saved != null && saved.sessionId === sessionId) {
+            pendingSaves.delete(callId)
+            if (event.data?.message?.isError !== true) {
+              const payload: LessonUpdatedPayload = { courseId: saved.courseId, kpId: saved.kpId }
+              for (const [, run] of activeRuns) {
+                if (run.sessionId === sessionId && !run.sender.isDestroyed()) {
+                  run.sender.send(IpcChannel.LessonUpdated, payload)
+                }
+              }
+            }
+          }
+        }
         for (const [runId, run] of activeRuns) {
           if (run.sessionId === sessionId) {
             for (const mapped of mapSessionEvent(event)) emit(runId, run, mapped)
