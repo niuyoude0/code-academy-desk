@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="220" viewBox="0 0 1000 220" role="img" aria-label="Code Academy Desk">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3574F0"/>
+      <stop offset="0.55" stop-color="#5A5CE6"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="220" fill="url(#bg)"/>
+  <rect width="1000" height="110" fill="url(#glow)"/>
+  <circle cx="70" cy="46" r="90" fill="#ffffff" opacity="0.06"/>
+  <circle cx="946" cy="30" r="60" fill="#ffffff" opacity="0.07"/>
+  <path d="M0 170 C 150 134, 300 202, 470 174 C 650 144, 820 198, 1000 162 L1000 220 L0 220 Z" fill="#ffffff" opacity="0.10"/>
+  <path d="M0 190 C 180 160, 360 212, 540 188 C 720 164, 860 206, 1000 186 L1000 220 L0 220 Z" fill="#ffffff" opacity="0.16"/>
+  <g font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif" fill="#ffffff">
+    <text x="500" y="96" text-anchor="middle" font-size="46" font-weight="700" letter-spacing="1">Code Academy Desk</text>
+    <text x="500" y="136" text-anchor="middle" font-size="18" fill="#EAF0FF">教材 → AI 课件 → 交互学习 → 本地判题 · 桌面编程学习工作台</text>
+    <text x="500" y="168" text-anchor="middle" font-size="12.5" fill="#D8E2FF" opacity="0.9">Electron 45 · React 19 · TypeScript · AGPL-3.0</text>
+  </g>
+</svg>
